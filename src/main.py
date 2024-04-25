@@ -1,28 +1,34 @@
-from signal import signal, SIGTERM, SIGHUP, pause
-from gpiozero import Robot, Motor, Servo, DistanceSensor
+import schedule
+import time
+from bluetoothTask import BluetoothTask
+from taskScheduler import TaskScheduler
+from auxClasses.tasksCommand import TasksCommand
 
-robot = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
-ultrassonicSens = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
+bluetoothTask = BluetoothTask()
+taskScheduler = TaskScheduler()
 
-def safeExit(signum, frame):
-   robot.stop()
-   exit(1)
+def main():
+   bluetoothTask.start()
 
-def runRobot():
    while True:
-      if ultrassonicSens.distance < 0.15:
-         robot.stop()
-      elif ultrassonicSens.distance < 0.30:
-         robot.right()
-      else:
-         robot.forward()
+      try:
+         schedule.run_pending()
 
-try:
-   signal(SIGTERM, safeExit)
-   signal(SIGHUP, safeExit)
+         tasks = bluetoothTask.getTasksCommand()
 
-   robot.source = runRobot
+         if tasks.mustStartNow():
+            taskScheduler.runRoutineNow()
+            bluetoothTask.rxBtMsg.resetMsg()
+         elif tasks.haveTimeToStart():
+            timeToStart = tasks.getTimeToStartTasks()
+            taskScheduler.runRoutineAt(timeToStart[0], timeToStart[1], timeToStart[2])
 
-   pause()
-except KeyboardInterrupt:
-   safeExit(None, None)
+         time.sleep(1)
+      
+      except KeyboardInterrupt:
+         bluetoothTask.stop()
+         taskScheduler.stopRoutine()
+         exit(1)
+
+
+main()
