@@ -1,6 +1,5 @@
 import threading
 import time
-from signal import signal, SIGTERM, SIGHUP, pause
 from gpiozero import Robot, Motor, Servo, DistanceSensor
 
 class MotorTask:
@@ -28,12 +27,8 @@ class MotorTask:
       while(1):
          time.sleep(1)
          try:
-            signal(SIGTERM, self.safeExit)
-            signal(SIGHUP, self.safeExit)
-
             self.robot.source = self.runRobot
-
-            pause()
+            
          except KeyboardInterrupt:
             self.safeExit(None, None)
 
@@ -41,7 +36,3 @@ class MotorTask:
       self.thread.start()
    def stop(self):
       self.thread.join()
-
-   def safeExit(self, signum, frame):
-      self.robot.stop()
-      exit(1)

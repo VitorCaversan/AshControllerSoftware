@@ -17,7 +17,7 @@ class BluetoothTask:
       self.description = "BluetoothTask"
       self.status = BluetoothState.IDLE
       self.dependencies = []
-      self.rxBtMsg = RxBluetoothMsg("1_16_23:29:00".encode('utf-8'))
+      self.rxBtMsg = RxBluetoothMsg("0_16_00:00:00".encode('utf-8'))
       self.thread = threading.Thread(target=self.listen)
 
    def listen(self):
