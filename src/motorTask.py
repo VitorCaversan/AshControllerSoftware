@@ -12,16 +12,16 @@ class MotorTask:
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
-      while True:
-         if self.ultrassonicSens.distance < 0.15:
-            self.robot.stop()
-            print("stoped")
-         elif self.ultrassonicSens.distance < 0.30:
-            self.robot.right()
-            print("right")
-         else:
-            self.robot.forward()
-            print("forward")
+      print(str(self.ultrassonicSens.distance))
+      if self.ultrassonicSens.distance < 0.15:
+         self.robot.stop()
+         print("stoped")
+      elif self.ultrassonicSens.distance < 0.30:
+         self.robot.right()
+         print("right")
+      else:
+         self.robot.forward()
+         print("forward")
 
    def run(self):
       while(1):
