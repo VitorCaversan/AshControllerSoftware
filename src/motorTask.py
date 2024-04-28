@@ -25,14 +25,18 @@ class MotorTask:
 
    def run(self):
       while(1):
-         time.sleep(1)
          try:
-            self.robot.source = self.runRobot
-            
+            self.runRobot()
          except KeyboardInterrupt:
             self.safeExit(None, None)
+         
+         time.sleep(1)
 
    def start(self):
       self.thread.start()
    def stop(self):
       self.thread.join()
+
+   def safeExit(self, signum, frame):
+      self.robot.stop()
+      exit(1)
