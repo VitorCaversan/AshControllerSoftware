@@ -7,7 +7,7 @@ class PeripheralsTask:
       self.name = "PeripheralsTask"
       self.description = "PeripheralsTask"
       self.dependencies = []
-      # self.vacuumMotor   = PWMOutputDevice(pin=12)
+      self.vacuumMotor   = PWMOutputDevice(pin=12)
       self.robot         = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
       self.encoderLeft   = RotaryEncoder(a=5, b=6)
       # self.encoderRight  = RotaryEncoder(a=25, b=16)
@@ -19,13 +19,16 @@ class PeripheralsTask:
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
-      print(str(self.leftDistSens.distance) + ", steps: " + str(self.encoderLeft.steps))
+      print(f"{str(self.leftDistSens.distance)}, steps: {str(self.encoderLeft.steps)}")
       if self.leftDistSens.distance < 0.15:
          self.robot.stop()
+         self.setVacuumMotorPWM(0.1)
       elif self.leftDistSens.distance < 0.30:
          self.robot.forward(speed=0.3, curve_left=0.0, curve_right=0.3)
+         self.setVacuumMotorPWM(0.5)
       else:
          self.robot.forward(speed=0.8, curve_left=0.0, curve_right=0.8)
+         self.setVacuumMotorPWM(0.8)
 
    def run(self):
       while(1):
@@ -39,6 +42,15 @@ class PeripheralsTask:
    def start(self):
       self.thread.start()
    def stop(self):
+      self.robot.stop()
+      self.vacuumMotor.off()
+      self.servo.detach()
+      self.encoderLeft.close()
+      self.encoderRight.close()
+      self.leftDistSens.close()
+      self.frontDistSens.close()
+      self.rightDistSens.close()
+      self.backDistSens.close()
       self.thread.join()
 
    def safeExit(self, signum, frame):
@@ -58,6 +70,10 @@ class PeripheralsTask:
    #    return self.rightDistSens.distance
    # def getBackDistance(self) -> float:
    #    return self.backDistSens.distance
+
+   def setVacuumMotorPWM(self, pwm: float):
+      if (pwm >= 0) and (pwm <= 1):
+         self.vacuumMotor.blink(on_time=(0.01*pwm), off_time=(0.01*(1-pwm)))
 
    def turnRobotForward(self, speed: float, leftSpeed: float, rightSpeed: float):
       if ((leftSpeed < 0 or leftSpeed > 1) or (rightSpeed < 0 or rightSpeed > 1) or (speed < 0 or speed > 1)):
