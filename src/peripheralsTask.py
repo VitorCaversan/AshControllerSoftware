@@ -26,6 +26,7 @@ class PeripheralsTask:
       elif self.leftDistSens.distance < 0.20:
          self.robot.stop()
          self.setVacuumMotorPWM(0.0)
+         self.resetEncoders()
       elif self.leftDistSens.distance < 0.30:
          self.robot.forward(speed=0.3, curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.5)
@@ -64,6 +65,9 @@ class PeripheralsTask:
       return self.encoderLeft.steps
    def getRightEncoderSteps(self) -> int:
       return self.encoderRight.steps
+   def resetEncoders(self):
+      self.encoderLeft.steps  = 0
+      self.encoderRight.steps = 0
    
    def getLeftDistance(self) -> float:
       return self.leftDistSens.distance
