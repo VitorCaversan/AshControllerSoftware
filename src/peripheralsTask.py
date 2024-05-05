@@ -1,6 +1,7 @@
 import threading
 import time
 from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder
+from auxClasses.infraredSensorMngr import InfraredSensorMngr
 
 class PeripheralsTask:
    def __init__(self):
@@ -15,11 +16,14 @@ class PeripheralsTask:
       # self.frontDistSens = DistanceSensor(echo=22, trigger=17, threshold_distance=0.15)
       # self.rightDistSens = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
       # self.backDistSens  = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
+      self.tubeSensMngr  = InfraredSensorMngr(frontPin=14, backPin=15)
       # self.servo         = Servo(pin=24)
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
-      print(f"{str(self.leftDistSens.distance)}, steps: {str(self.encoderLeft.steps)}")
+      print(f"Sensor distance: {str(self.leftDistSens.distance)},
+            \nsteps: {str(self.encoderLeft.steps)},
+            \ncollected balls: {str(self.tubeSensMngr.ballCount)}\n")
       if self.leftDistSens.distance < 0.10:
          self.robot.backward(speed=0.3, curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.1)
