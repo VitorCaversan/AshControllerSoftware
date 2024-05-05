@@ -20,3 +20,7 @@ class InfraredSensorMngr:
          print(f"Ball {self.ballCount} took {time.time_ns() // 1000000 - self.frontSensFiredOn} ms to pass")
          self.frontSensFiredOn = 0
          self.ballCount       += 1
+
+   def close(self):
+      self.frontSensor.close()
+      self.backSensor.close()

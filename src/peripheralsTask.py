@@ -21,9 +21,7 @@ class PeripheralsTask:
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
-      print(f"Sensor distance: {str(self.leftDistSens.distance)},
-            \nsteps: {str(self.encoderLeft.steps)},
-            \ncollected balls: {str(self.tubeSensMngr.ballCount)}\n")
+      print(f"Sensor distance: {str(self.leftDistSens.distance)}, \nsteps: {str(self.encoderLeft.steps)}, \ncollected balls: {str(self.tubeSensMngr.ballCount)}\n")
       if self.leftDistSens.distance < 0.10:
          self.robot.backward(speed=0.3, curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.1)
@@ -59,6 +57,7 @@ class PeripheralsTask:
       # self.frontDistSens.close()
       # self.rightDistSens.close()
       # self.backDistSens.close()
+      self.tubeSensMngr.close()
       self.thread.join()
 
    def safeExit(self, signum, frame):
