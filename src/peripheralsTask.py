@@ -8,7 +8,7 @@ class PeripheralsTask:
    def __init__(self, queue: queue.Queue):
       self.name = "PeripheralsTask"
       self.description = "PeripheralsTask"
-      self.queue         = queue
+      self.msgQueue      = queue
       self.vacuumMotor   = PWMOutputDevice(pin=12)
       self.robot         = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
       self.encoderLeft   = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
@@ -38,7 +38,7 @@ class PeripheralsTask:
          self.setVacuumMotorPWM(0.8)
 
       if self.tubeSensMngr.isBallStuck():
-         self.queue.put("Ball stuck")
+         self.msgQueue.put("Ball stuck")
 
    def run(self):
       while(1):
