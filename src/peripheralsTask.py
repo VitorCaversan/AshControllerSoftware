@@ -1,13 +1,14 @@
 import threading
 import time
+import queue
 from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder
 from auxClasses.infraredSensorMngr import InfraredSensorMngr
 
 class PeripheralsTask:
-   def __init__(self):
+   def __init__(self, queue: queue.Queue):
       self.name = "PeripheralsTask"
       self.description = "PeripheralsTask"
-      self.dependencies = []
+      self.queue         = queue
       self.vacuumMotor   = PWMOutputDevice(pin=12)
       self.robot         = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
       self.encoderLeft   = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
@@ -17,7 +18,7 @@ class PeripheralsTask:
       # self.rightDistSens = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
       # self.backDistSens  = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
       self.tubeSensMngr  = InfraredSensorMngr(frontPin=14, backPin=15)
-      # self.servo         = Servo(pin=24)
+      self.servo         = Servo(pin=24)
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
@@ -36,6 +37,9 @@ class PeripheralsTask:
          self.robot.forward(speed=0.8, curve_left=0.0, curve_right=0.8)
          self.setVacuumMotorPWM(0.8)
 
+      if self.tubeSensMngr.isBallStuck():
+         self.queue.put("Ball stuck")
+
    def run(self):
       while(1):
          try:
@@ -50,13 +54,13 @@ class PeripheralsTask:
    def stop(self):
       self.robot.stop()
       self.vacuumMotor.off()
-      # self.servo.detach()
       self.encoderLeft.close()
       self.encoderRight.close()
       self.leftDistSens.close()
       # self.frontDistSens.close()
       # self.rightDistSens.close()
       # self.backDistSens.close()
+      self.servo.detach()
       self.tubeSensMngr.close()
       self.thread.join()
 
@@ -84,6 +88,9 @@ class PeripheralsTask:
    def setVacuumMotorPWM(self, pwm: float):
       if (pwm >= 0) and (pwm <= 1):
          self.vacuumMotor.blink(on_time=(0.01*pwm), off_time=(0.01*(1-pwm)))
+
+   def isBallStuck(self) -> bool:
+      return self.tubeSensMngr.isBallStuck()
 
    # Drive the robot forward by running both motors forward.
    # Left and right relative to the robot itself

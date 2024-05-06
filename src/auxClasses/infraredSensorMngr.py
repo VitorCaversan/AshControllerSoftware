@@ -21,6 +21,9 @@ class InfraredSensorMngr:
          self.frontSensFiredOn = 0
          self.ballCount       += 1
 
+   def isBallStuck(self) -> bool:
+      return (time.time_ns() // 1000000 - self.frontSensFiredOn) > 3000
+
    def close(self):
       self.frontSensor.close()
       self.backSensor.close()
