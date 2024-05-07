@@ -1,24 +1,25 @@
 import threading
 import time
 import queue
-from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder
+from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder, DigitalInputDevice
 from auxClasses.infraredSensorMngr import InfraredSensorMngr
 
 class PeripheralsTask:
    def __init__(self, queue: queue.Queue):
       self.name = "PeripheralsTask"
       self.description = "PeripheralsTask"
-      self.msgQueue      = queue
-      self.vacuumMotor   = PWMOutputDevice(pin=12)
-      self.robot         = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
-      self.encoderLeft   = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
-      self.encoderRight  = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
-      self.leftDistSens  = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
+      self.msgQueue       = queue
+      self.vacuumMotor    = PWMOutputDevice(pin=12)
+      self.robot          = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
+      self.encoderLeft    = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
+      self.encoderRight   = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
+      self.leftDistSens   = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
       # self.frontDistSens = DistanceSensor(echo=22, trigger=17, threshold_distance=0.15)
       # self.rightDistSens = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
       # self.backDistSens  = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
-      self.tubeSensMngr  = InfraredSensorMngr(frontPin=14, backPin=15)
-      self.servo         = Servo(pin=24)
+      self.tubeSensMngr   = InfraredSensorMngr(frontPin=14, backPin=15)
+      self.hallEffectSens = DigitalInputDevice(pin=23, active_state=False)
+      self.servo          = Servo(pin=24)
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
@@ -89,9 +90,6 @@ class PeripheralsTask:
       if (pwm >= 0) and (pwm <= 1):
          self.vacuumMotor.blink(on_time=(0.01*pwm), off_time=(0.01*(1-pwm)))
 
-   def isBallStuck(self) -> bool:
-      return self.tubeSensMngr.isBallStuck()
-
    # Drive the robot forward by running both motors forward.
    # Left and right relative to the robot itself
    def turnRobotForward(self, speed: float, curveLeftRate: float, curveRightRate: float):
@@ -114,3 +112,5 @@ class PeripheralsTask:
       
       self.robot.backward(speed=speed, curve_left=curveLeftRate, curve_right=curveRightRate)
    
+   def getHallEffectState(self) -> bool:
+      return self.hallEffectSens.is_active
