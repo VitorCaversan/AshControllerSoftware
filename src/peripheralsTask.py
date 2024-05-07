@@ -1,7 +1,11 @@
 import threading
 import time
 import queue
+import board
+import busio
 from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder, DigitalInputDevice
+from adafruit_ads1x15.analog_in import AnalogIn
+import adafruit_ads1x15.ads1115 as ADS
 from auxClasses.infraredSensorMngr import InfraredSensorMngr
 
 class PeripheralsTask:
@@ -20,10 +24,13 @@ class PeripheralsTask:
       self.tubeSensMngr   = InfraredSensorMngr(frontPin=14, backPin=15)
       self.hallEffectSens = DigitalInputDevice(pin=23, active_state=False)
       self.servo          = Servo(pin=24)
+      self.ads            = ADS.ADS1115(busio.I2C(scl=3, sda=2))
+      self.adsChannel     = AnalogIn(self.ads, ADS.P0)
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
       print(f"Sensor distance: {str(self.leftDistSens.distance)}, \nsteps: {str(self.encoderLeft.steps)}, \ncollected balls: {str(self.tubeSensMngr.ballCount)}\n")
+      print(f"Ads value: {str(self.adsChannel.value)}, voltage: {str(self.adsChannel.voltage)}\n")
       if self.leftDistSens.distance < 0.10:
          self.robot.backward(speed=0.3, curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.1)
@@ -40,6 +47,9 @@ class PeripheralsTask:
 
       if self.tubeSensMngr.isBallStuck():
          self.msgQueue.put("Ball stuck")
+
+      if self.adsChannel.voltage < 1.5:
+         self.msgQueue.put("Low battery")
 
    def run(self):
       while(1):

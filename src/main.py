@@ -41,6 +41,9 @@ def main():
          if msg == "Ball stuck":
             print("Ball stuck")
             # Send message to Bluetooth device
+         elif msg == "Low battery":
+            print("Low battery")
+            # Send message to Bluetooth device and return to base
 
          time.sleep(1)
       
