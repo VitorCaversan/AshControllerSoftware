@@ -35,7 +35,7 @@ def main():
             timeToStart = tasks.getTimeToStartTasks()
             taskScheduler.runRoutineAt(timeToStart[0], timeToStart[1], timeToStart[2])
 
-         print(str(msgQueue.qsize()))
+         # print(str(msgQueue.qsize()))
          msg = msgQueue.get(timeout=1)
 
          if msg == "Ball stuck":

@@ -22,27 +22,40 @@ class PeripheralsTask:
       # self.rightDistSens = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
       # self.backDistSens  = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
       self.tubeSensMngr   = InfraredSensorMngr(frontPin=14, backPin=15)
-      self.hallEffectSens = DigitalInputDevice(pin=23, active_state=False)
+      self.hallEffectSens = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
       self.servo          = Servo(pin=24)
       self.ads            = ADS.ADS1115(busio.I2C(scl=3, sda=2))
       self.adsChannel     = AnalogIn(self.ads, ADS.P0)
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
-      print(f"Sensor distance: {str(self.leftDistSens.distance)}, \nsteps: {str(self.encoderLeft.steps)}, \ncollected balls: {str(self.tubeSensMngr.ballCount)}\n")
+      print(f"Sensor distance: {str(self.leftDistSens.distance)}, \nsteps: {str(self.encoderLeft.steps)}, \ncollected balls: {str(self.tubeSensMngr.ballCount)}")
       print(f"Ads value: {str(self.adsChannel.value)}, voltage: {str(self.adsChannel.voltage)}\n")
+
+      if self.hallEffectSens.is_active:
+         self.robot.stop()
+         self.setVacuumMotorPWM(0.0)
+         self.resetEncoders()
+         return
+
+      adsCtrlRate = self.adsChannel.voltage / 3.3
+      if adsCtrlRate < 0.0:
+         adsCtrlRate = 0.0
+      elif adsCtrlRate > 1.0:
+         adsCtrlRate = 1.0
+
       if self.leftDistSens.distance < 0.10:
-         self.robot.backward(speed=0.3, curve_left=0.0, curve_right=0.3)
+         self.robot.backward(speed=(adsCtrlRate*0.3), curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.1)
       elif self.leftDistSens.distance < 0.20:
          self.robot.stop()
          self.setVacuumMotorPWM(0.0)
          self.resetEncoders()
       elif self.leftDistSens.distance < 0.30:
-         self.robot.forward(speed=0.3, curve_left=0.0, curve_right=0.3)
+         self.robot.forward(speed=(adsCtrlRate*0.3), curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.5)
       else:
-         self.robot.forward(speed=0.8, curve_left=0.0, curve_right=0.8)
+         self.robot.forward(speed=(adsCtrlRate*0.8), curve_left=0.0, curve_right=0.8)
          self.setVacuumMotorPWM(0.8)
 
       if self.tubeSensMngr.isBallStuck():
