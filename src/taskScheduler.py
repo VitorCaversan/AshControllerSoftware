@@ -1,17 +1,17 @@
 import schedule
-from motorTask import MotorTask
+from peripheralsTask import PeripheralsTask
 
 class TaskScheduler:
    def __init__(self):
       self.currentTask = None
-      self.motorTask = MotorTask()
+      self.peripheralsTask = PeripheralsTask()
    
    def runRoutineNow(self):
       print("Running routine now")
-      self.motorTask.start()
+      self.peripheralsTask.start()
 
    def runRoutineAt(self, hour, min, sec):
       schedule.every().day.at(f"{hour}:{min}:{sec}").do(self.runRoutineNow)
 
    def stopRoutine(self):
-      self.motorTask.stop()
+      self.peripheralsTask.stop()
