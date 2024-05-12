@@ -7,6 +7,11 @@ It's basically divided into these categories:
 - Peripherals data reading;
 - Peripherals actuation;
 
+# Used libraries
+- OpenCV
+- adafruit-circuitpython-ads1x15
+- adafruit-circuitpython-icm20x
+
 # GPIO configuration:
 Here is the GPIO configuration for Raspberry Pi boards:
 ![GPIO pins in Raspberry Pi](images/image.png)

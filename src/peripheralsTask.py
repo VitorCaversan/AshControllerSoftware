@@ -6,6 +6,7 @@ import busio
 from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder, DigitalInputDevice
 from adafruit_ads1x15.analog_in import AnalogIn
 import adafruit_ads1x15.ads1115 as ADS
+import adafruit_icm20x as IMU
 from auxClasses.infraredSensorMngr import InfraredSensorMngr
 
 class PeripheralsTask:
@@ -26,6 +27,7 @@ class PeripheralsTask:
       self.servo          = Servo(pin=24)
       self.ads            = ADS.ADS1115(busio.I2C(scl=3, sda=2))
       self.adsChannel     = AnalogIn(self.ads, ADS.P0)
+      self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2))
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
