@@ -1,33 +1,56 @@
 import threading
 import time
+import socket
+import queue
 from enum import Enum
 from auxClasses.rxBluetoothMsg import RxBluetoothMsg
 
-class BluetoothState(Enum):
-   IDLE = 1
-   SCANNING = 2
-   CONNECTING = 3
-   CONNECTED = 4
-   DISCONNECTING = 5
-   DISCONNECTED = 6
+statusCodes = {
+   200 : "200 OK",
+   400 : "400 Bad Request",
+   404 : "404 Not Found",
+   409 : "409 Conflict",
+   503 : "503 Service Unavailable"
+}
 
 class BluetoothTask:
-   def __init__(self):
+   def __init__(self, ctrlMsgQueue: queue.Queue):
       self.name = "BluetoothTask"
       self.description = "BluetoothTask"
-      self.status = BluetoothState.IDLE
-      self.dependencies = []
-      self.rxBtMsg = RxBluetoothMsg("0_16_00:00:00".encode('utf-8'))
+      self.rxBtMsg = RxBluetoothMsg()
+      self.server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+      self.server.bind(("B8:27:EB:8E:C4:59", socket.PORT_ANY))
+      self.server.listen(1)
+      self.client: socket = None
+      self.ctrlMsgQueue = ctrlMsgQueue
       self.thread = threading.Thread(target=self.listen)
 
    def listen(self):
+      client, address = self.server.accept()
+      self.client = client
+      print(f"Connected with {address}")
+
       while(1):
-         print("Listening for Bluetooth devices...")
-         self.status = BluetoothState.SCANNING
+         data = self.client.recv(1024).decode('utf-8')
+         if data:
+            self.rxBtMsg.parseMsg(data)
+            self.client.send(statusCodes[200].encode('utf-8'))
+
+            print(f"Received message: {self.rxBtMsg.msg}")
+            
+            if self.rxBtMsg.isCtrlCommand():
+               self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
+            
          time.sleep(5)
+
+   def sendRobotStatus(self, json: str):
+      print(f"Sending message: {json}")
+      if self.client:
+         self.client.send(json.encode('utf-8'))
 
    def start(self):
       self.thread.start()
+      self.client.close()
    def stop(self):
       self.thread.join()
 

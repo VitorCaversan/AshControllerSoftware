@@ -1,42 +1,47 @@
+import json
 from enum import Enum
 from auxClasses.tasksCommand import TasksCommand
 
-class MsgType(Enum):
-   START_NOW = 0
-   SCHEDULE_START = 1
-   IDLE = 2
+# A class containing info parsed from a received Bluetooth message such as:
+# {
+#   "robot_command": "start", # options: start, return_to_base, pause, resume, schedule
+#   "schedule": {
+#     # Only if robot_command is "schedule"
+#     "start_time": "10:00:00",
+#     "end_time": "12:00:00"
+#   }
+# }
+
 
 # A class containing all info needed to handle task scheduling
 class RxBluetoothMsg:
-   def __init__(self, msg):
-      self.msg = msg.decode('utf-8').split('_')
-      self.msg_type = MsgType(int(self.msg[0]))
-      self.msg_len = self.msg[1]
-      self.msg_data = self.msg[2:]
-
+   def __init__(self):
+      self.msg = ""
+      self.robot_command = ""
       self.tasksCommand = TasksCommand()
-      self.parseMsg(msg)
 
    def parseMsg(self, msg):
-      self.msg = msg.decode('utf-8').split('_')
-      self.msg_type = MsgType(int(self.msg[0]))
-      self.msg_len = self.msg[1]
-      self.msg_data = self.msg[2]
+      self.msg = msg.decode('utf-8')
+      parsedMsg = json.loads(self.msg)
+      self.robot_command = parsedMsg["robot_command"]
 
-      if self.msg_type == MsgType.START_NOW:
+
+      if self.robot_command == "start":
          self.tasksCommand.setStartTasksNow(True)
-      elif self.msg_type == MsgType.SCHEDULE_START:
+      elif self.robot_command == "schedule":
          self.tasksCommand.setStartTasksNow(False)
-         self.tasksCommand.setTimeToStartTasks(self.msg_data)
+         self.tasksCommand.setTimeToStartTasks(parsedMsg["schedule"]["start_time"])
+         self.tasksCommand.setTimeToEndTasks(parsedMsg["schedule"]["end_time"])
       else:
          print("Unknown message type")
          self.tasksCommand.setStartTasksNow(False)
          self.tasksCommand.setTimeToStartTasks("00:00:00")
+         self.tasksCommand.setTimeToEndTasks("00:00:00")
    
    def resetMsg(self):
       self.msg = []
-      self.msg_type = MsgType.IDLE
-      self.msg_len = 0
-      self.msg_data = []
       self.tasksCommand.setStartTasksNow(False)
       self.tasksCommand.setTimeToStartTasks("00:00:00")
+
+   def isCtrlCommand(self) -> bool:
+      return self.robot_command != "start" and self.robot_command != "schedule"
