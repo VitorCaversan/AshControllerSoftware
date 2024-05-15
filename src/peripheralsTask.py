@@ -1,8 +1,8 @@
 import threading
 import time
 import queue
-import board
 import busio
+import json
 from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder, DigitalInputDevice
 from adafruit_ads1x15.analog_in import AnalogIn
 import adafruit_ads1x15.ads1115 as ADS
@@ -13,7 +13,7 @@ class PeripheralsTask:
    def __init__(self, queue: queue.Queue):
       self.name = "PeripheralsTask"
       self.description = "PeripheralsTask"
-      self.msgQueue       = queue
+      self.mainMsgQueue   = queue
       self.vacuumMotor    = PWMOutputDevice(pin=12)
       self.robot          = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
       self.encoderLeft    = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
@@ -28,6 +28,20 @@ class PeripheralsTask:
       self.ads            = ADS.ADS1115(busio.I2C(scl=3, sda=2))
       self.adsChannel     = AnalogIn(self.ads, ADS.P0)
       self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2))
+      self.periodicMsg    = {
+         "sens_dist_left": 0.0,
+         "sens_dist_front": 0.0,
+         "sens_dist_right": 0.0,
+         "sens_dist_back": 0.0,
+         "battery_level": 0.0,
+         "balls_collected": 0,
+         "balls_coordinates": [
+            { "X": 0.0, "Y": 0.0 },
+            { "X": 0.0, "Y": 0.0 },
+         ],
+         "robot_status": "collecting_balls", # Options: collecting_balls, searching_for_balls, returning_to_base, paused
+         "robot_error": "base_not_found" # Options: base_not_found, robot_stuck, ball_stuck
+      }
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
@@ -60,11 +74,22 @@ class PeripheralsTask:
          self.robot.forward(speed=(adsCtrlRate*0.8), curve_left=0.0, curve_right=0.8)
          self.setVacuumMotorPWM(0.8)
 
+      ### periodic message update ###
+      self.updatePeriodicMsg()
+
       if self.tubeSensMngr.isBallStuck():
-         self.msgQueue.put("Ball stuck")
+         self.periodicMsg["robot_error"] = "ball_stuck"
+         self.mainMsgQueue.put(json.dumps(self.periodicMsg))
+      else:
+         self.periodicMsg["robot_error"] = ""
 
       if self.adsChannel.voltage < 1.5:
-         self.msgQueue.put("Low battery")
+         self.periodicMsg["robot_error"] = "low_battery"
+         self.mainMsgQueue.put(json.dumps(self.periodicMsg))
+      else:
+         self.periodicMsg["robot_error"] = ""
+
+      self.mainMsgQueue.put(json.dumps(self.periodicMsg))
 
    def run(self):
       while(1):
@@ -139,3 +164,13 @@ class PeripheralsTask:
    
    def getHallEffectState(self) -> bool:
       return self.hallEffectSens.is_active
+   
+   def updatePeriodicMsg(self):
+      self.periodicMsg["sens_dist_left"] = self.leftDistSens.distance
+      # self.periodicMsg["sens_dist_front"] = self.frontDistSens.distance
+      # self.periodicMsg["sens_dist_right"] = self.rightDistSens.distance
+      # self.periodicMsg["sens_dist_back"] = self.backDistSens.distance
+      self.periodicMsg["battery_level"] = self.adsChannel.voltage
+      self.periodicMsg["balls_collected"] = self.tubeSensMngr.ballCount
+      self.periodicMsg["balls_coordinates"] = []
+      self.periodicMsg["robot_status"] = "collecting_balls"

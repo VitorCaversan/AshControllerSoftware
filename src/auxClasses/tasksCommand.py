@@ -6,6 +6,7 @@ class TasksCommand:
    def __init__(self):
       self.startTasksNow = False
       self.timeToStartTasks = ["00", "00", "00"]
+      self.timeToEndTasks = ["00", "00", "00"]
 
    def setStartTasksNow(self, startTasksNow):
       self.startTasksNow = startTasksNow
@@ -19,6 +20,12 @@ class TasksCommand:
       self.timeToStartTasks[MINUTE] = parsedTime[MINUTE]
       self.timeToStartTasks[SECOND] = parsedTime[SECOND]
 
+   def setTimeToEndTasks(self, timeToEndTasks):
+      parsedTime = timeToEndTasks.split(":")
+      self.timeToEndTasks[HOUR] = parsedTime[HOUR]
+      self.timeToEndTasks[MINUTE] = parsedTime[MINUTE]
+      self.timeToEndTasks[SECOND] = parsedTime[SECOND]
+
    def getTimeToStartTasks(self):
       return self.timeToStartTasks
 
@@ -26,9 +33,6 @@ class TasksCommand:
       return ((self.timeToStartTasks[HOUR] != "00") or
               (self.timeToStartTasks[MINUTE] != "00") or
               (self.timeToStartTasks[SECOND] != "00"))
-
-   def gettimeToStartTasks(self):
-      return self.timeToStartTasks
    
    def __str__(self) -> str:
       if self.startTasksNow:

@@ -6,14 +6,15 @@ from bluetoothTask import BluetoothTask
 from taskScheduler import TaskScheduler
 from auxClasses.tasksCommand import TasksCommand
 
-msgQueue = queue.Queue()
-bluetoothTask = BluetoothTask()
-taskScheduler = TaskScheduler(queue=msgQueue)
+mainMsgQueue = queue.Queue()
+ctrlMsgQueue = queue.Queue()
+bluetoothTask = BluetoothTask(ctrlMsgQueue)
+taskScheduler = TaskScheduler(queue=mainMsgQueue)
 
 def safeExit(self, signum, frame):
    bluetoothTask.stop()
    taskScheduler.stopRoutine()
-   msgQueue.join()
+   mainMsgQueue.join()
    exit(1)
 
 def main():
@@ -35,22 +36,19 @@ def main():
             timeToStart = tasks.getTimeToStartTasks()
             taskScheduler.runRoutineAt(timeToStart[0], timeToStart[1], timeToStart[2])
 
-         # print(str(msgQueue.qsize()))
-         msg = msgQueue.get(timeout=1)
+         # print(str(mainMsgQueue.qsize()))
+         msg = mainMsgQueue.get(timeout=1)
 
-         if msg == "Ball stuck":
-            print("Ball stuck")
-            # Send message to Bluetooth device
-         elif msg == "Low battery":
-            print("Low battery")
-            # Send message to Bluetooth device and return to base
+         if msg != "":
+            bluetoothTask.sendRobotStatus(msg)
+            mainMsgQueue.task_done()
 
          time.sleep(1)
       
       except KeyboardInterrupt:
          bluetoothTask.stop()
          taskScheduler.stopRoutine()
-         msgQueue.join()
+         mainMsgQueue.join()
          exit(1)
       
       except queue.Empty:
