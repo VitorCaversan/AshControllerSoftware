@@ -19,7 +19,7 @@ class BluetoothTask:
       self.description = "BluetoothTask"
       self.rxBtMsg = RxBluetoothMsg()
       self.server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-      self.server.bind(("B8:27:EB:8E:C4:59", socket.PORT_ANY))
+      self.server.bind(("B8:27:EB:8E:C4:59", 4))
       self.server.listen(1)
       self.client: socket = None
       self.ctrlMsgQueue = ctrlMsgQueue
@@ -40,19 +40,21 @@ class BluetoothTask:
             
             if self.rxBtMsg.isCtrlCommand():
                self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
-            
+         else:
+            print("No data received, closing connection")
+            break
          time.sleep(5)
 
    def sendRobotStatus(self, json: str):
-      print(f"Sending message: {json}")
       if self.client:
+         print(f"Sending message: {json}")
          self.client.send(json.encode('utf-8'))
 
    def start(self):
       self.thread.start()
-      self.client.close()
    def stop(self):
       self.thread.join()
+      self.client.close()
 
    def stopListening(self):
       self.thread.join()
