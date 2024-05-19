@@ -21,7 +21,7 @@ class RxBluetoothMsg:
       self.tasksCommand = TasksCommand()
 
    def parseMsg(self, msg):
-      self.msg = msg.decode('utf-8')
+      self.msg = msg
       parsedMsg = json.loads(self.msg)
       self.robot_command = parsedMsg["robot_command"]
 
