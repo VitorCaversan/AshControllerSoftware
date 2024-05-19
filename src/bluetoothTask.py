@@ -6,6 +6,16 @@ import subprocess
 from enum import Enum
 from auxClasses.rxBluetoothMsg import RxBluetoothMsg
 
+# To successfully run this bluetooth server, these following commands
+# must be done in the raspberry pi terminal to make it publically visible:
+# bluetoothctl
+# power on
+# discoverable on
+# pairable on
+# agent NoInputNoOutput
+# default-agent
+# exit
+
 statusCodes = {
    200 : "200 OK",
    400 : "400 Bad Request",
@@ -21,7 +31,7 @@ class BluetoothTask:
       self.rxBtMsg = RxBluetoothMsg()
       self.makeDiscoverable()
       self.server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-      self.server.bind(("", socket.BT_PORT_ANY))
+      self.server.bind(("B8:27:EB:8E:C4:59", 4))
       self.server.listen(1)
       self.client: socket = None
       self.ctrlMsgQueue = ctrlMsgQueue
@@ -56,7 +66,7 @@ class BluetoothTask:
          self.server.close()
          print("Socket closed")
 
-   def makeDiscoverable():
+   def makeDiscoverable(self):
       subprocess.run("bluetoothctl power on", shell=True)
       subprocess.run("bluetoothctl discoverable on", shell=True)
       subprocess.run("bluetoothctl pairable on", shell=True)
