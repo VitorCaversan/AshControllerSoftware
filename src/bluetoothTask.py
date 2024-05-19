@@ -2,6 +2,7 @@ import threading
 import time
 import socket
 import queue
+import subprocess
 from enum import Enum
 from auxClasses.rxBluetoothMsg import RxBluetoothMsg
 
@@ -18,8 +19,9 @@ class BluetoothTask:
       self.name = "BluetoothTask"
       self.description = "BluetoothTask"
       self.rxBtMsg = RxBluetoothMsg()
+      self.makeDiscoverable()
       self.server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-      self.server.bind(("B8:27:EB:8E:C4:59", 4))
+      self.server.bind(("", socket.BT_PORT_ANY))
       self.server.listen(1)
       self.client: socket = None
       self.ctrlMsgQueue = ctrlMsgQueue
@@ -27,6 +29,8 @@ class BluetoothTask:
 
    def listen(self):
       try:
+         port = self.server.getsockname()[1]
+         print(f"Waiting for connection on RFCOMM channel {port}")
          client, address = self.server.accept()
          self.client = client
          print(f"Connected with {address}")
@@ -43,6 +47,7 @@ class BluetoothTask:
                   self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
             else:
                print("No data received, closing connection")
+               client.close()
                break
             time.sleep(5)
       except socket.error as e:
@@ -50,6 +55,13 @@ class BluetoothTask:
       finally:
          self.server.close()
          print("Socket closed")
+
+   def makeDiscoverable():
+      subprocess.run("bluetoothctl power on", shell=True)
+      subprocess.run("bluetoothctl discoverable on", shell=True)
+      subprocess.run("bluetoothctl pairable on", shell=True)
+      subprocess.run("bluetoothctl agent NoInputNoOutput", shell=True)
+      subprocess.run("bluetoothctl default-agent", shell=True)
 
    def sendRobotStatus(self, json: str):
       if self.client:
