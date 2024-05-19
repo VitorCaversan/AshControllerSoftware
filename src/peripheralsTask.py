@@ -27,7 +27,7 @@ class PeripheralsTask:
       self.servo          = Servo(pin=24)
       self.ads            = ADS.ADS1115(busio.I2C(scl=3, sda=2))
       self.adsChannel     = AnalogIn(self.ads, ADS.P0)
-      self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2))
+      # self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2))
       self.periodicMsg    = {
          "sens_dist_left": 0.0,
          "sens_dist_front": 0.0,
