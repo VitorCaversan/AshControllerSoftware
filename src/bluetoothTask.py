@@ -26,24 +26,30 @@ class BluetoothTask:
       self.thread = threading.Thread(target=self.listen)
 
    def listen(self):
-      client, address = self.server.accept()
-      self.client = client
-      print(f"Connected with {address}")
+      try:
+         client, address = self.server.accept()
+         self.client = client
+         print(f"Connected with {address}")
 
-      while(1):
-         data = self.client.recv(1024).decode('utf-8')
-         if data:
-            self.rxBtMsg.parseMsg(data)
-            self.client.send(statusCodes[200].encode('utf-8'))
+         while(1):
+            data = self.client.recv(1024).decode('utf-8')
+            if data:
+               self.rxBtMsg.parseMsg(data)
+               self.client.send(statusCodes[200].encode('utf-8'))
 
-            print(f"Received message: {self.rxBtMsg.msg}")
-            
-            if self.rxBtMsg.isCtrlCommand():
-               self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
-         else:
-            print("No data received, closing connection")
-            break
-         time.sleep(5)
+               print(f"Received message: {self.rxBtMsg.msg}")
+               
+               if self.rxBtMsg.isCtrlCommand():
+                  self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
+            else:
+               print("No data received, closing connection")
+               break
+            time.sleep(5)
+      except socket.error as e:
+         print(f"Socket error: {e}")
+      finally:
+         self.server.close()
+         print("Socket closed")
 
    def sendRobotStatus(self, json: str):
       if self.client:
