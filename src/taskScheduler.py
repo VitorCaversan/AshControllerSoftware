@@ -1,10 +1,11 @@
 import schedule
+import queue
 from peripheralsTask import PeripheralsTask
 
 class TaskScheduler:
-   def __init__(self):
+   def __init__(self, queue: queue.Queue):
       self.currentTask = None
-      self.peripheralsTask = PeripheralsTask()
+      self.peripheralsTask = PeripheralsTask(queue=queue)
    
    def runRoutineNow(self):
       print("Running routine now")

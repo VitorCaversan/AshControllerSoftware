@@ -1,38 +1,68 @@
 import threading
 import time
-from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder
+import queue
+import board
+import busio
+from gpiozero import Robot, Motor, Servo, DistanceSensor, PWMOutputDevice, RotaryEncoder, DigitalInputDevice
+from adafruit_ads1x15.analog_in import AnalogIn
+import adafruit_ads1x15.ads1115 as ADS
+from auxClasses.infraredSensorMngr import InfraredSensorMngr
 
 class PeripheralsTask:
-   def __init__(self):
+   def __init__(self, queue: queue.Queue):
       self.name = "PeripheralsTask"
       self.description = "PeripheralsTask"
-      self.dependencies = []
-      self.vacuumMotor   = PWMOutputDevice(pin=12)
-      self.robot         = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
-      self.encoderLeft   = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
-      self.encoderRight  = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
-      self.leftDistSens  = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
+      self.msgQueue       = queue
+      self.vacuumMotor    = PWMOutputDevice(pin=12)
+      self.robot          = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
+      self.encoderLeft    = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
+      self.encoderRight   = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
+      self.leftDistSens   = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
       # self.frontDistSens = DistanceSensor(echo=22, trigger=17, threshold_distance=0.15)
       # self.rightDistSens = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
       # self.backDistSens  = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
-      # self.servo         = Servo(pin=24)
+      self.tubeSensMngr   = InfraredSensorMngr(frontPin=14, backPin=15)
+      self.hallEffectSens = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
+      self.servo          = Servo(pin=24)
+      self.ads            = ADS.ADS1115(busio.I2C(scl=3, sda=2))
+      self.adsChannel     = AnalogIn(self.ads, ADS.P0)
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
-      print(f"{str(self.leftDistSens.distance)}, steps: {str(self.encoderLeft.steps)}")
+      print(f"Sensor distance: {str(self.leftDistSens.distance)}, \nsteps: {str(self.encoderLeft.steps)}, \ncollected balls: {str(self.tubeSensMngr.ballCount)}")
+      print(f"Ads value: {str(self.adsChannel.value)}, voltage: {str(self.adsChannel.voltage)}\n")
+
+      if self.hallEffectSens.is_active:
+         self.robot.stop()
+         self.setVacuumMotorPWM(0.0)
+         self.resetEncoders()
+         return
+
+      adsCtrlRate = self.adsChannel.voltage / 3.3
+      if adsCtrlRate < 0.0:
+         adsCtrlRate = 0.0
+      elif adsCtrlRate > 1.0:
+         adsCtrlRate = 1.0
+
       if self.leftDistSens.distance < 0.10:
-         self.robot.backward(speed=0.3, curve_left=0.0, curve_right=0.3)
+         self.robot.backward(speed=(adsCtrlRate*0.3), curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.1)
       elif self.leftDistSens.distance < 0.20:
          self.robot.stop()
          self.setVacuumMotorPWM(0.0)
          self.resetEncoders()
       elif self.leftDistSens.distance < 0.30:
-         self.robot.forward(speed=0.3, curve_left=0.0, curve_right=0.3)
+         self.robot.forward(speed=(adsCtrlRate*0.3), curve_left=0.0, curve_right=0.3)
          self.setVacuumMotorPWM(0.5)
       else:
-         self.robot.forward(speed=0.8, curve_left=0.0, curve_right=0.8)
+         self.robot.forward(speed=(adsCtrlRate*0.8), curve_left=0.0, curve_right=0.8)
          self.setVacuumMotorPWM(0.8)
+
+      if self.tubeSensMngr.isBallStuck():
+         self.msgQueue.put("Ball stuck")
+
+      if self.adsChannel.voltage < 1.5:
+         self.msgQueue.put("Low battery")
 
    def run(self):
       while(1):
@@ -48,13 +78,14 @@ class PeripheralsTask:
    def stop(self):
       self.robot.stop()
       self.vacuumMotor.off()
-      # self.servo.detach()
       self.encoderLeft.close()
       self.encoderRight.close()
       self.leftDistSens.close()
       # self.frontDistSens.close()
       # self.rightDistSens.close()
       # self.backDistSens.close()
+      self.servo.detach()
+      self.tubeSensMngr.close()
       self.thread.join()
 
    def safeExit(self, signum, frame):
@@ -104,3 +135,5 @@ class PeripheralsTask:
       
       self.robot.backward(speed=speed, curve_left=curveLeftRate, curve_right=curveRightRate)
    
+   def getHallEffectState(self) -> bool:
+      return self.hallEffectSens.is_active
