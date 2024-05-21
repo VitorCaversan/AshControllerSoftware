@@ -6,10 +6,10 @@ from bluetoothTask import BluetoothTask
 from taskScheduler import TaskScheduler
 from auxClasses.tasksCommand import TasksCommand
 
-mainMsgQueue = queue.Queue()
-ctrlMsgQueue = queue.Queue()
-bluetoothTask = BluetoothTask(ctrlMsgQueue)
-taskScheduler = TaskScheduler(queue=mainMsgQueue)
+mainMsgQueue   = queue.Queue()
+ctrlMsgQueue   = queue.Queue()
+bluetoothTask  = BluetoothTask(ctrlMsgQueue)
+taskScheduler  = TaskScheduler(mainQueue=mainMsgQueue, ctrlQueue=ctrlMsgQueue)
 
 def safeExit(self, signum, frame):
    bluetoothTask.stop()
@@ -36,7 +36,6 @@ def main():
             timeToStart = tasks.getTimeToStartTasks()
             taskScheduler.runRoutineAt(timeToStart[0], timeToStart[1], timeToStart[2])
 
-         # print(str(mainMsgQueue.qsize()))
          msg = mainMsgQueue.get(timeout=1)
 
          if msg != "":

@@ -1,18 +1,18 @@
 import schedule
 import queue
-from peripheralsTask import PeripheralsTask
+from controlTask import ControlTask
 
 class TaskScheduler:
-   def __init__(self, queue: queue.Queue):
+   def __init__(self, mainQueue: queue.Queue, ctrlQueue: queue.Queue):
       self.currentTask = None
-      self.peripheralsTask = PeripheralsTask(queue=queue)
+      self.controlTask = ControlTask(mainQueue=mainQueue, ctrlQueue=ctrlQueue)
    
    def runRoutineNow(self):
       print("Running routine now")
-      self.peripheralsTask.start()
+      self.controlTask.start()
 
    def runRoutineAt(self, hour, min, sec):
       schedule.every().day.at(f"{hour}:{min}:{sec}").do(self.runRoutineNow)
 
    def stopRoutine(self):
-      self.peripheralsTask.stop()
+      self.controlTask.stop()
