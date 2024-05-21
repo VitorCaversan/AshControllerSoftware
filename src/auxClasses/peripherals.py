@@ -88,7 +88,7 @@ class Peripherals:
    def stopRobot(self):
       self.robot.stop()
 
-   def getHallEffectState(self) -> bool:
+   def isHallEffectSensActive(self) -> bool:
       return self.hallEffectSens.is_active
    
    def getBatteryVoltage(self) -> float:
