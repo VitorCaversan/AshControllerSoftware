@@ -13,19 +13,21 @@ from auxClasses.infraredSensorMngr import InfraredSensorMngr
 # controlling motors, etc.
 class Peripherals:
    def __init__(self):
-      self.vacuumMotor    = PWMOutputDevice(pin=12)
-      self.robot          = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
-      self.encoderLeft    = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
-      self.encoderRight   = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
-      self.leftDistSens   = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-      # self.frontDistSens = DistanceSensor(echo=22, trigger=17, threshold_distance=0.15)
-      # self.rightDistSens = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
-      # self.backDistSens  = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
-      self.tubeSensMngr   = InfraredSensorMngr(frontPin=14, backPin=15)
-      self.hallEffectSens = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
-      self.servo          = Servo(pin=24)
-      self.ads            = ADS.ADS1115(busio.I2C(scl=3, sda=2))
-      self.adsChannel     = AnalogIn(self.ads, ADS.P0)
+      self.vacuumMotor      = PWMOutputDevice(pin=12)
+      self.robot            = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
+      self.encoderLeft      = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
+      self.encoderRight     = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
+      self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
+      # self.frontDistSens   = DistanceSensor(echo=22, trigger=17, threshold_distance=0.15)
+      # self.rightDistSens   = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
+      # self.backDistSens    = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
+      self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
+      self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
+      self.servo            = Servo(pin=24)
+      self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
+      self.chargerCnnctd    = AnalogIn(self.ads, ADS.P0)
+      self.vacuumBattery    = AnalogIn(self.ads, ADS.P2)
+      self.elctrnicsBattery = AnalogIn(self.ads, ADS.P1)
       # self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2))
 
    def close(self):
@@ -91,10 +93,15 @@ class Peripherals:
    def isHallEffectSensActive(self) -> bool:
       return self.hallEffectSens.is_active
    
-   def getBatteryVoltage(self) -> float:
-      return self.adsChannel.voltage
-   def getBatteryADCValue(self) -> int:
-      return self.adsChannel.value
+   def getLowerBatteryVoltage(self) -> float:
+      minVoltage = min(self.vacuumBattery.voltage, self.elctrnicsBattery.voltage)
+      return minVoltage
+   def getLowerBatteryADCVal(self) -> int:
+      minADCVal = min(self.vacuumBattery.value, self.elctrnicsBattery.value)
+      return minADCVal
+   
+   def isChargerConnected(self) -> bool:
+      return (self.chargerCnnctd.voltage > 3.0)
    
    def getCollectedBallsQty(self) -> int:
       return self.tubeSensMngr.ballCount

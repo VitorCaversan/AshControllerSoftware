@@ -29,7 +29,7 @@ class ControlTask:
 
    def runRobot(self):
       print(f"Sensor distance: {str(self.peripherals.getLeftDistance())}, \nsteps: {str(self.peripherals.getLeftEncoderSteps())}, \ncollected balls: {str(self.peripherals.getCollectedBallsQty())}")
-      print(f"Ads value: {str(self.peripherals.getBatteryADCValue())}, voltage: {str(self.peripherals.getBatteryVoltage())}\n")
+      print(f"Ads value: {str(self.peripherals.getLowerBatteryADCVal())}, voltage: {str(self.peripherals.getLowerBatteryVoltage())}\n")
 
       if self.peripherals.isHallEffectSensActive():
          self.peripherals.stopRobot()
@@ -37,7 +37,7 @@ class ControlTask:
          self.peripherals.resetEncoders()
          return
 
-      adsCtrlRate = self.peripherals.getBatteryVoltage() / 3.3
+      adsCtrlRate = self.peripherals.getLowerBatteryVoltage() / 3.3
       if adsCtrlRate < 0.0:
          adsCtrlRate = 0.0
       elif adsCtrlRate > 1.0:
@@ -62,7 +62,7 @@ class ControlTask:
 
       if self.peripherals.isBallStuck():
          self.btPeriodicMsg["robot_error"] = "ball_stuck"
-      elif self.peripherals.getBatteryVoltage() < 1.5:
+      elif self.peripherals.getLowerBatteryVoltage() < 1.5:
          self.btPeriodicMsg["robot_error"] = "low_battery"
       else:
          self.btPeriodicMsg["robot_error"] = ""
@@ -95,7 +95,7 @@ class ControlTask:
       # self.btPeriodicMsg["sens_dist_front"] = self.frontDistSens.distance
       # self.btPeriodicMsg["sens_dist_right"] = self.rightDistSens.distance
       # self.btPeriodicMsg["sens_dist_back"] = self.backDistSens.distance
-      self.btPeriodicMsg["battery_level"] = self.peripherals.getBatteryVoltage()
+      self.btPeriodicMsg["battery_level"] = self.peripherals.getLowerBatteryVoltage()
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
       self.btPeriodicMsg["robot_status"] = "collecting_balls"
