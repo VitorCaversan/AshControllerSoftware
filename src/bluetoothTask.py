@@ -3,7 +3,6 @@ import time
 import socket
 import queue
 import subprocess
-from enum import Enum
 from auxClasses.rxBluetoothMsg import RxBluetoothMsg
 
 # To successfully run this bluetooth server, these following commands

@@ -6,7 +6,7 @@ class InfraredSensorMngr:
       self.frontSensor      = LineSensor(frontPin)
       self.backSensor       = LineSensor(backPin)
       self.frontSensFiredOn = 0
-      self.ballCount        = 0
+      self.ballCount: int   = 0
       self.frontSensor.when_line = self.whenFrontFired
       self.backSensor.when_line  = self.whenBackFired
 
