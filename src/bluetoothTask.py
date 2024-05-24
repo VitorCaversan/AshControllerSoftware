@@ -4,7 +4,15 @@ import socket
 import queue
 import subprocess
 import os
-import bluetooth as bt # This is the PyBluez library
+import bluetooth as bt # This is the PyBluez library. 
+# To install:
+# sudo apt-get install bluetooth libbluetooth-dev
+# pip install git+https://github.com/pybluez/pybluez.git#egg=pybluez (--break-system-packages if pip complains about something)
+# If it still doesn't recognize the bluetooth import:
+# sudo apt install python3-bluez
+# To solve bluetooth.btcommon.BluetoothError: (2, 'No such file or directory'):
+# Run the Bluetooth daemon in 'compatibility' mode. Edit /etc/systemd/system/dbus-org.bluez.service and add '-C' after 'bluetoothd'. Reboot.
+# Then sudo sdptool add SP
 from auxClasses.rxBluetoothMsg import RxBluetoothMsg
 
 # To successfully run this bluetooth server, these following commands
@@ -45,7 +53,8 @@ class BluetoothTask:
       '''
 
       # Make device visible
-      os.system("hciconfig hci0 piscan")
+      os.system("sudo hciconfig hci0 piscan")
+      # maybe also sudo sdptool add SP
 
       # Create a new server socket using RFCOMM protocol
       self.server = bt.BluetoothSocket(bt.RFCOMM)
@@ -60,7 +69,7 @@ class BluetoothTask:
       port = self.server.getsockname()[1]
 
       # Start advertising the service
-      bt.advertise_service(self.server, "raspberrypi_server",
+      bt.advertise_service(self.server, "RaspiBtSrv",
                         service_id=self.uuid,
                         service_classes=[self.uuid, bt.SERIAL_PORT_CLASS],
                         profiles=[bt.SERIAL_PORT_PROFILE])
@@ -98,10 +107,11 @@ class BluetoothTask:
 
    def makeDiscoverable(self):
       subprocess.run("bluetoothctl power on", shell=True)
+      subprocess.run("bluetoothctl agent on", shell=True)
+      subprocess.run("bluetoothctl default-agent", shell=True)
+      subprocess.run("bluetoothctl agent NoInputNoOutput", shell=True)
       subprocess.run("bluetoothctl discoverable on", shell=True)
       subprocess.run("bluetoothctl pairable on", shell=True)
-      subprocess.run("bluetoothctl agent NoInputNoOutput", shell=True)
-      subprocess.run("bluetoothctl default-agent", shell=True)
 
    def sendRobotStatus(self, json: str):
       if self.client:
@@ -112,7 +122,9 @@ class BluetoothTask:
       self.thread.start()
    def stop(self):
       self.thread.join()
-      self.client.close()
+      self.server.close()
+      if self.client is not None:
+         self.client.close()
 
    def stopListening(self):
       self.thread.join()
