@@ -55,13 +55,13 @@ class Peripherals:
       self.encoderRight.steps = 0
    
    def getLeftDistance(self) -> float:
-      return self.leftDistSens.distance
+      return self.leftDistSens.distance * 100.0
    # def getFrontDistance(self) -> float:
-   #    return self.frontDistSens.distance
+   #    return self.frontDistSens.distance * 100.0
    # def getRightDistance(self) -> float:
-   #    return self.rightDistSens.distance
+   #    return self.rightDistSens.distance * 100.0
    # def getBackDistance(self) -> float:
-   #    return self.backDistSens.distance
+   #    return self.backDistSens.distance * 100.0
 
    def setVacuumMotorPWM(self, pwm: float):
       if (pwm >= 0) and (pwm <= 1):
@@ -93,8 +93,9 @@ class Peripherals:
    def isHallEffectSensActive(self) -> bool:
       return self.hallEffectSens.is_active
    
-   def getLowerBatteryVoltage(self) -> float:
+   def getLowerBatteryLvl(self) -> float:
       minVoltage = min(self.vacuumBattery.voltage, self.elctrnicsBattery.voltage)
+      minVoltage = (minVoltage / 3.3) * 100
       return minVoltage
    def getLowerBatteryADCVal(self) -> int:
       minADCVal = min(self.vacuumBattery.value, self.elctrnicsBattery.value)

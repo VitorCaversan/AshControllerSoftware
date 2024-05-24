@@ -4,6 +4,7 @@ import socket
 import queue
 import subprocess
 import os
+import json
 import bluetooth as bt # This is the PyBluez library. 
 # To install:
 # sudo apt-get install bluetooth libbluetooth-dev
@@ -84,7 +85,8 @@ class BluetoothTask:
                data = self.client.recv(1024).decode('utf-8')
                if data:
                   self.rxBtMsg.parseMsg(data)
-                  self.client.send(statusCodes[200].encode('utf-8'))
+                  # okMsg = {"status" : statusCodes[200]}
+                  # self.client.send(json.dumps(okMsg).encode('utf-8'))
 
                   print(f"Received message: {self.rxBtMsg.msg}")
                   
