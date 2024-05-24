@@ -3,6 +3,8 @@ import time
 import socket
 import queue
 import subprocess
+import os
+import bluetooth as bt # This is the PyBluez library
 from auxClasses.rxBluetoothMsg import RxBluetoothMsg
 
 # To successfully run this bluetooth server, these following commands
@@ -28,42 +30,71 @@ class BluetoothTask:
       self.name = "BluetoothTask"
       self.description = "BluetoothTask"
       self.rxBtMsg = RxBluetoothMsg()
-      self.makeDiscoverable()
-      self.server = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-      self.server.bind(("B8:27:EB:8E:C4:59", 4))
-      self.server.listen(1)
+      self.server: socket = None
+      self.uuid = "7be1fcb3-5776-42fb-91fd-2ee7b5bbb86d"
       self.client: socket = None
       self.ctrlMsgQueue = ctrlMsgQueue
       self.thread = threading.Thread(target=self.listen)
 
    def listen(self):
-      try:
-         port = self.server.getsockname()[1]
+      '''
+      Serves a socket on the default port, listening for clients.  Upon client connection, runs a loop to 
+      that receives period-delimited messages from the client and calls the sub-class's 
+      handleMessage(self, message) method.   Sub-class can call send(self, message) to send a 
+      message back to the client.   Begins listening again after client disconnects.
+      '''
+
+      # Make device visible
+      os.system("hciconfig hci0 piscan")
+
+      # Create a new server socket using RFCOMM protocol
+      self.server = bt.BluetoothSocket(bt.RFCOMM)
+
+      # Bind to any port
+      self.server.bind(("", bt.PORT_ANY))
+
+      # Start listening
+      self.server.listen(1)
+
+      # Get the port the server socket is listening
+      port = self.server.getsockname()[1]
+
+      # Start advertising the service
+      bt.advertise_service(self.server, "raspberrypi_server",
+                        service_id=self.uuid,
+                        service_classes=[self.uuid, bt.SERIAL_PORT_CLASS],
+                        profiles=[bt.SERIAL_PORT_PROFILE])
+      while True:
          print(f"Waiting for connection on RFCOMM channel {port}")
-         client, address = self.server.accept()
-         self.client = client
-         print(f"Connected with {address}")
 
-         while(1):
-            data = self.client.recv(1024).decode('utf-8')
-            if data:
-               self.rxBtMsg.parseMsg(data)
-               self.client.send(statusCodes[200].encode('utf-8'))
+         try:
+            self.client, address = self.server.accept()
+            print(f"Connected with {address}")
 
-               print(f"Received message: {self.rxBtMsg.msg}")
+            while True:
+               data = self.client.recv(1024).decode('utf-8')
+               if data:
+                  self.rxBtMsg.parseMsg(data)
+                  self.client.send(statusCodes[200].encode('utf-8'))
+
+                  print(f"Received message: {self.rxBtMsg.msg}")
+                  
+                  if self.rxBtMsg.isCtrlCommand():
+                     self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
                
-               if self.rxBtMsg.isCtrlCommand():
-                  self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
-            else:
-               print("No data received, closing connection")
-               client.close()
-               break
-            time.sleep(5)
-      except socket.error as e:
-         print(f"Socket error: {e}")
-      finally:
-         self.server.close()
-         print("Socket closed")
+               time.sleep(5)
+         except socket.error as e:
+            print(f"Socket error: {e}")
+         except IOError:
+            pass
+         except KeyboardInterrupt:
+            if self.client is not None:
+               self.client.close()
+
+            self.server.close()
+
+            print("Server going down")
+            break
 
    def makeDiscoverable(self):
       subprocess.run("bluetoothctl power on", shell=True)
