@@ -58,6 +58,7 @@ class ControlTask:
          self.peripherals.setVacuumMotorPWM(0.8)
 
       ### bluetooth periodic message update ###
+      print("Before updateBtPeriodicMsg")
       self.updateBtPeriodicMsg()
 
       if self.peripherals.isBallStuck():
@@ -67,6 +68,7 @@ class ControlTask:
       else:
          self.btPeriodicMsg["robot_error"] = ""
 
+      print("Before put")
       self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
 
    def run(self):
