@@ -31,11 +31,11 @@ class ControlTask:
       print(f"Sensor distance: {str(9.0)}, \nsteps: {str(self.peripherals.getLeftEncoderSteps())}, \ncollected balls: {str(self.peripherals.getCollectedBallsQty())}")
       print(f"Ads value: {str(1000)}, voltage: {str(30.0)}\n")
 
-      if self.peripherals.isHallEffectSensActive():
-         self.peripherals.stopRobot()
-         self.peripherals.setVacuumMotorPWM(0.0)
-         self.peripherals.resetEncoders()
-         return
+      # if self.peripherals.isHallEffectSensActive():
+      #    self.peripherals.stopRobot()
+      #    self.peripherals.setVacuumMotorPWM(0.0)
+      #    self.peripherals.resetEncoders()
+      #    return
 
       adsCtrlRate = 30.0 / 100.0
       if adsCtrlRate < 0.0:
