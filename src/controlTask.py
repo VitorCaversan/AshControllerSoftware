@@ -29,7 +29,7 @@ class ControlTask:
 
    def runRobot(self):
       print(f"Sensor distance: {str(9.0)}, \nsteps: {str(self.peripherals.getLeftEncoderSteps())}, \ncollected balls: {str(self.peripherals.getCollectedBallsQty())}")
-      print(f"Ads value: {str(1000)}, voltage: {str(30.0)}\n")
+      print(f"Ads value: {str(self.peripherals.getLowerBatteryADCVal())}, voltage: {str(self.peripherals.getLowerBatteryLvl())}\n")
 
       # if self.peripherals.isHallEffectSensActive():
       #    self.peripherals.stopRobot()

@@ -26,7 +26,7 @@ class Peripherals:
       self.servo            = Servo(pin=24)
       # self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
       # self.chargerCnnctd    = AnalogIn(self.ads, ADS.P0)
-      # self.vacuumBattery    = AnalogIn(self.ads, ADS.P2)
+      self.vacuumBattery    = AnalogIn(self.ads, ADS.P0)
       # self.elctrnicsBattery = AnalogIn(self.ads, ADS.P1)
       # self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2))
 
@@ -93,13 +93,13 @@ class Peripherals:
    def isHallEffectSensActive(self) -> bool:
       return self.hallEffectSens.is_active
    
-   # def getLowerBatteryLvl(self) -> float:
-   #    minVoltage = min(self.vacuumBattery.voltage, self.elctrnicsBattery.voltage)
-   #    minVoltage = (minVoltage / 3.3) * 100
-   #    return minVoltage
-   # def getLowerBatteryADCVal(self) -> int:
-   #    minADCVal = min(self.vacuumBattery.value, self.elctrnicsBattery.value)
-   #    return minADCVal
+   def getLowerBatteryLvl(self) -> float:
+      minVoltage = self.vacuumBattery.voltage # min(self.vacuumBattery.voltage, self.elctrnicsBattery.voltage)
+      minVoltage = (minVoltage / 3.3) * 100
+      return minVoltage
+   def getLowerBatteryADCVal(self) -> int:
+      minADCVal = self.vacuumBattery.voltage #min(self.vacuumBattery.value, self.elctrnicsBattery.value)
+      return minADCVal
    
    # def isChargerConnected(self) -> bool:
    #    return (self.chargerCnnctd.voltage > 3.0)
