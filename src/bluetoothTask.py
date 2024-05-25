@@ -85,8 +85,9 @@ class BluetoothTask:
                data = self.client.recv(1024).decode('utf-8')
                if data:
                   self.rxBtMsg.parseMsg(data)
-                  # okMsg = {"status" : statusCodes[200]}
-                  # self.client.send(json.dumps(okMsg).encode('utf-8'))
+                  okMsg = {"status" : statusCodes[200],
+                           "message": "Robot started"}
+                  self.client.send((json.dumps(okMsg) + '\n').encode('utf-8')) # App decodes messages up until '\n'
 
                   print(f"Received message: {self.rxBtMsg.msg}")
                   
@@ -118,7 +119,7 @@ class BluetoothTask:
    def sendRobotStatus(self, json: str):
       if self.client:
          print(f"Sending message: {json}")
-         self.client.send(json.encode('utf-8'))
+         self.client.send((json + '\n').encode('utf-8')) # App decodes messages up until '\n'
 
    def start(self):
       self.thread.start()
