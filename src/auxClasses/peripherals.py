@@ -7,6 +7,11 @@ import adafruit_ads1x15.ads1115 as ADS
 import adafruit_icm20x as IMU
 from auxClasses.infraredSensorMngr import InfraredSensorMngr
 
+MOTOR_STEPS_PER_TURN = 872
+ROBOT_RADIUS_FROM_CENTER_IN_M = 0.1
+WHEEL_DIAMETER_IN_M = 0.068
+WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * WHEEL_DIAMETER_IN_M
+MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / WHEEL_CIRCUMFERENCE_IN_M
 
 # A class that contains all the peripherals of the robot
 # It offers all the necessary functions to interact with the peripherals, such as reading sensors,
@@ -77,6 +82,7 @@ class Peripherals:
          return
       
       self.robot.forward(speed=speed, curve_left=curveLeftRate, curve_right=curveRightRate)
+   
    # Drive the robot backward by running both motors backward.
    # Left and right relative to the robot itself
    def driveRobotBackward(self, speed: float, curveLeftRate: float, curveRightRate: float):
@@ -87,6 +93,34 @@ class Peripherals:
          return
       
       self.robot.backward(speed=speed, curve_left=curveLeftRate, curve_right=curveRightRate)
+
+   # Rotates the robot in its own axis, given an direction and an agle in radians
+   # direction: 0 for left, 1 for right
+   # angle: angle in radians
+   def rotate(self, direction: int, angle: float):
+      initialSteps: int = 0
+      encoderSteps = {0: self.encoderRight.steps, 1: self.encoderLeft.steps}
+
+      if (direction == 0):
+         initialSteps = self.encoderRight.steps
+         self.robot.left()
+      elif (direction == 1):
+         initialSteps = self.encoderLeft.steps
+         self.robot.right()
+      else:
+         print("Invalid direction")
+         return
+      
+      archSize = angle * ROBOT_RADIUS_FROM_CENTER_IN_M
+      stepsToTurn = archSize * MOTOR_STEPS_PER_M
+
+      while (abs(encoderSteps[direction] - initialSteps) < stepsToTurn):
+         time.sleep(0.01)
+      
+      self.robot.stop()
+
+      return
+   
    def stopRobot(self):
       self.robot.stop()
 
