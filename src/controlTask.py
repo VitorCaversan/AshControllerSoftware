@@ -28,29 +28,29 @@ class ControlTask:
       self.thread = threading.Thread(target=self.run)
 
    def runRobot(self):
-      print(f"Sensor distance: {str(self.peripherals.getLeftDistance())}, \nsteps: {str(self.peripherals.getLeftEncoderSteps())}, \ncollected balls: {str(self.peripherals.getCollectedBallsQty())}")
+      print(f"Sensor distance: {str(9.0)}, \nsteps: {str(self.peripherals.getLeftEncoderSteps())}, \ncollected balls: {str(self.peripherals.getCollectedBallsQty())}")
       print(f"Ads value: {str(self.peripherals.getLowerBatteryADCVal())}, voltage: {str(self.peripherals.getLowerBatteryLvl())}\n")
 
-      if self.peripherals.isHallEffectSensActive():
-         self.peripherals.stopRobot()
-         self.peripherals.setVacuumMotorPWM(0.0)
-         self.peripherals.resetEncoders()
-         return
+      # if self.peripherals.isHallEffectSensActive():
+      #    self.peripherals.stopRobot()
+      #    self.peripherals.setVacuumMotorPWM(0.0)
+      #    self.peripherals.resetEncoders()
+      #    return
 
-      adsCtrlRate = self.peripherals.getLowerBatteryLvl() / 100.0
+      adsCtrlRate = 30.0 / 100.0
       if adsCtrlRate < 0.0:
          adsCtrlRate = 0.0
       elif adsCtrlRate > 1.0:
          adsCtrlRate = 1.0
 
-      if self.peripherals.getLeftDistance() < 0.10:
+      if 9.0 < 0.10:
          self.peripherals.driveRobotBackward(speed=(adsCtrlRate*0.3), curveLeftRate=0.0, curveRightRate=0.3)
          self.peripherals.setVacuumMotorPWM(0.1)
-      elif self.peripherals.getLeftDistance() < 0.20:
+      elif 9.0 < 0.20:
          self.peripherals.stopRobot()
          self.peripherals.setVacuumMotorPWM(0.0)
          self.peripherals.resetEncoders()
-      elif self.peripherals.getLeftDistance() < 0.30:
+      elif 9.0 < 0.30:
          self.peripherals.driveRobotForward(speed=(adsCtrlRate*0.3), curveLeftRate=0.0, curveRightRate=0.3)
          self.peripherals.setVacuumMotorPWM(0.5)
       else:
@@ -58,15 +58,17 @@ class ControlTask:
          self.peripherals.setVacuumMotorPWM(0.8)
 
       ### bluetooth periodic message update ###
+      print("Before updateBtPeriodicMsg")
       self.updateBtPeriodicMsg()
 
       if self.peripherals.isBallStuck():
          self.btPeriodicMsg["robot_error"] = "ball_stuck"
-      elif self.peripherals.getLowerBatteryLvl() < 25.0:
+      elif 30.0 < 25.0:
          self.btPeriodicMsg["robot_error"] = "low_battery"
       else:
          self.btPeriodicMsg["robot_error"] = ""
 
+      print("Before put")
       self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
 
    def run(self):
@@ -91,11 +93,11 @@ class ControlTask:
       exit(1)
    
    def updateBtPeriodicMsg(self):
-      self.btPeriodicMsg["sens_dist_left"] = self.peripherals.getLeftDistance()
+      self.btPeriodicMsg["sens_dist_left"] = 9.0
       # self.btPeriodicMsg["sens_dist_front"] = self.frontDistSens.distance
       # self.btPeriodicMsg["sens_dist_right"] = self.rightDistSens.distance
       # self.btPeriodicMsg["sens_dist_back"] = self.backDistSens.distance
-      self.btPeriodicMsg["battery_level"] = self.peripherals.getLowerBatteryLvl()
+      self.btPeriodicMsg["battery_level"] = 30.0
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
       self.btPeriodicMsg["robot_status"] = "collecting_balls"
