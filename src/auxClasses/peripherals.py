@@ -18,46 +18,46 @@ MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / WHEEL_CIRCUMFERENCE_IN_M
 # controlling motors, etc.
 class Peripherals:
    def __init__(self):
-      self.vacuumMotor      = PWMOutputDevice(pin=12)
-      self.robot            = Robot(left=(Motor(19, 26)), right=(Motor(20, 21)))
+      self.vacuumMotor      = PWMOutputDevice(pin=12, frequency=2000)
+      self.robot            = Robot(left=(Motor(26, 19)), right=(Motor(21, 20)))
       self.encoderLeft      = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
       # self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
       # self.frontDistSens   = DistanceSensor(echo=22, trigger=17, threshold_distance=0.15)
       # self.rightDistSens   = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
       # self.backDistSens    = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
-      self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
-      self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
-      self.servo            = Servo(pin=24)
+      # self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
+      # self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
+      # self.servo            = Servo(pin=24)
       # self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
       # self.chargerCnnctd    = AnalogIn(self.ads, ADS.P0)
-      self.vacuumBattery    = AnalogIn(self.ads, ADS.P0)
+      # self.vacuumBattery    = AnalogIn(self.ads, ADS.P0)
       # self.elctrnicsBattery = AnalogIn(self.ads, ADS.P1)
       # self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2))
 
    def close(self):
       self.robot.stop()
       self.vacuumMotor.off()
-      self.encoderLeft.close()
-      self.encoderRight.close()
+      # self.encoderLeft.close()
+      # self.encoderRight.close()
       # self.leftDistSens.close()
       # self.frontDistSens.close()
       # self.rightDistSens.close()
       # self.backDistSens.close()
-      self.servo.detach()
-      self.tubeSensMngr.close()
+      # self.servo.detach()
+      # self.tubeSensMngr.close()
 
    def safeExit(self, signum, frame):
       self.robot.stop()
       exit(1)
 
-   def getLeftEncoderSteps(self) -> int:
-      return self.encoderLeft.steps
-   def getRightEncoderSteps(self) -> int:
-      return self.encoderRight.steps
-   def resetEncoders(self):
-      self.encoderLeft.steps  = 0
-      self.encoderRight.steps = 0
+   # def getLeftEncoderSteps(self) -> int:
+   #    return self.encoderLeft.steps
+   # def getRightEncoderSteps(self) -> int:
+   #    return self.encoderRight.steps
+   # def resetEncoders(self):
+   #    self.encoderLeft.steps  = 0
+   #    self.encoderRight.steps = 0
    
    # def getLeftDistance(self) -> float:
    #    return self.leftDistSens.distance * 100.0

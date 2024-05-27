@@ -5,6 +5,7 @@ from controlTask import ControlTask
 class TaskScheduler:
    def __init__(self, mainQueue: queue.Queue, ctrlQueue: queue.Queue):
       self.currentTask = None
+      print("starting controlTask")
       self.controlTask = ControlTask(mainQueue=mainQueue, ctrlQueue=ctrlQueue)
    
    def runRoutineNow(self):
