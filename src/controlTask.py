@@ -37,6 +37,8 @@ class ControlTask:
       #    self.peripherals.setVacuumMotorPWM(0.0)
       #    self.peripherals.resetEncoders()
       #    return
+
+      # print("Batt ", self.peripherals.getLowerBatteryLvl())
       # self.peripherals.rotate(1, 1)
       print("ligando aspirador")
       self.peripherals.setVacuumMotorPWM(0.1)
@@ -70,6 +72,8 @@ class ControlTask:
       time.sleep(0.5)
       self.peripherals.driveRobotBackward(0.0, 0, 0)
       self.peripherals.stopRobot()
+      # print("Batt ", self.peripherals.getLowerBatteryLvl())
+      # self.peripherals.rotate(0, 1)
       print("FINALIZADO")
 
       # adsCtrlRate = 30.0 / 100.0
@@ -94,7 +98,7 @@ class ControlTask:
 
       ### bluetooth periodic message update ###
       # print("Before updateBtPeriodicMsg")
-      # self.updateBtPeriodicMsg()
+      self.updateBtPeriodicMsg()
 
       # if self.peripherals.isBallStuck():
       #    self.btPeriodicMsg["robot_error"] = "ball_stuck"
@@ -107,15 +111,16 @@ class ControlTask:
       self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
 
    def run(self):
-      self.runRobot()
-      # while(1):
-      #    try:
-      #       print("running robot")
+      # 
+      while(1):
+         try:
+            self.runRobot()
+            print("running robot")
             
-      #    except KeyboardInterrupt:
-      #       self.safeExit(None, None)
+         except KeyboardInterrupt:
+            self.safeExit(None, None)
          
-      #    time.sleep(1)
+         time.sleep(1)
 
    def start(self):
       self.thread.start()
@@ -131,9 +136,9 @@ class ControlTask:
    
    def updateBtPeriodicMsg(self):
       self.btPeriodicMsg["sens_dist_left"] = 9.0
-      # self.btPeriodicMsg["sens_dist_front"] = self.frontDistSens.distance
-      # self.btPeriodicMsg["sens_dist_right"] = self.rightDistSens.distance
-      # self.btPeriodicMsg["sens_dist_back"] = self.backDistSens.distance
+      self.btPeriodicMsg["sens_dist_front"] = self.peripherals.getFrontDistance()
+      self.btPeriodicMsg["sens_dist_right"] = 5.0
+      self.btPeriodicMsg["sens_dist_back"] = 5.0
       self.btPeriodicMsg["battery_level"] = 30.0
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
