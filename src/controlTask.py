@@ -70,6 +70,7 @@ class ControlTask:
       time.sleep(0.5)
       self.peripherals.driveRobotBackward(0.5, 0, 0)
       time.sleep(0.5)
+      time.sleep(3)
       self.peripherals.driveRobotBackward(0.0, 0, 0)
       self.peripherals.stopRobot()
       # print("Batt ", self.peripherals.getLowerBatteryLvl())
