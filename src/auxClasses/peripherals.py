@@ -21,14 +21,14 @@ class Peripherals:
       self.vacuumMotor      = PWMOutputDevice(pin=12)
       self.robot            = Robot(left=(Motor(26, 19)), right=(Motor(21, 20)))
       self.encoderLeft      = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
-      self.encoderRight     = RotaryEncoder(a=25, b=16, max_steps=0) # 872 steps/turn
+      self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
       self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-      # self.frontDistSens   = DistanceSensor(echo=22, trigger=17, threshold_distance=0.15)
-      # self.rightDistSens   = DistanceSensor(echo=10, trigger=17, threshold_distance=0.15)
-      # self.backDistSens    = DistanceSensor(echo=9, trigger=17, threshold_distance=0.15)
+      # self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+      # self.rightDistSens   = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
+      # self.backDistSens    = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
       self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
       self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
-      self.servo            = Servo(pin=24)
+      self.servo            = Servo(pin=16)
       self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
       self.chargerCnnctd    = AnalogIn(self.ads, ADS.P0)
       self.vacuumBattery    = AnalogIn(self.ads, ADS.P2)
@@ -97,16 +97,16 @@ class Peripherals:
    # Rotates the robot in its own axis, given an direction and an agle in radians
    # direction: 0 for left, 1 for right
    # angle: angle in radians
-   def rotate(self, direction: int, angle: float):
+   def rotate(self, direction: int, angle: float, speed: float):
       initialSteps: int = 0
       encoderSteps = {0: self.encoderRight.steps, 1: self.encoderLeft.steps}
 
       if (direction == 0):
          initialSteps = self.encoderRight.steps
-         self.robot.left()
+         self.robot.left(speed=speed)
       elif (direction == 1):
          initialSteps = self.encoderLeft.steps
-         self.robot.right()
+         self.robot.right(speed=speed)
       else:
          print("Invalid direction")
          return
