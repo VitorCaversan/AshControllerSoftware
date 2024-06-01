@@ -57,6 +57,8 @@ class ControlTask:
          self.peripherals.driveRobotForward(speed=(adsCtrlRate*0.8), curveLeftRate=0.0, curveRightRate=0.8)
          self.peripherals.setVacuumMotorPWM(0.8)
 
+      self.peripherals.controlMotorsPWM()
+
       ### bluetooth periodic message update ###
       self.updateBtPeriodicMsg()
 
