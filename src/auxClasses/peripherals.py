@@ -34,7 +34,7 @@ class Peripherals:
       # self.chargerCnnctd    = AnalogIn(self.ads, ADS.P0)
       # self.vacuumBattery    = AnalogIn(self.ads, ADS.P0)
       # self.elctrnicsBattery = AnalogIn(self.ads, ADS.P1)
-      # self.imu            = IMU.ICM20948(busio.I2C(board.SCL, board.SDA))
+      self.imu            = IMU.ICM20948(busio.I2C(board.SCL, board.SDA), 0x68)
 
    def close(self):
       self.robot.stop()
