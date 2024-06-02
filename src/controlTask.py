@@ -3,6 +3,28 @@ import time
 import queue
 import json
 from auxClasses.peripherals import Peripherals
+from enum import Enum
+
+class State(Enum):
+   INIT = 0,
+   CONNECTED_TO_BASE = 1,
+   SEARCHING_BASE_WALL = 2,
+   CONNECTING_TO_BASE = 3,
+   ROBOT_STUCK = 4
+   FINDING_WALL = 5,
+   SEARCHING_BASE_CAM = 6,
+   WAITING_FOR_CHARGER = 7,
+   UNLOADING = 8,
+   WAITING_FOR_CMD_OR_SCHEDULE = 9,
+   CHARGING = 10,
+   SEARCHING_BALLS = 11,
+   AVOIDING_WALL = 12,
+   AVOIDING_STATIC_OBJECT = 13,
+   PAUSED = 14,
+   CATCHING_BALL = 15,
+   BALL_STUCK = 16,
+   WAITING_USER = 17
+
 
 class ControlTask:
    def __init__(self, mainQueue: queue.Queue, ctrlQueue: queue.Queue):
@@ -26,6 +48,8 @@ class ControlTask:
          "robot_error": "base_not_found" # Options: base_not_found, robot_stuck, ball_stuck
       }
       self.thread = threading.Thread(target=self.run)
+      self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
+      self.static_obj_detector_th = threading.Thread(target=self.run)
 
    def runRobot(self):
       print("running")
@@ -147,73 +171,445 @@ class ControlTask:
       self.btPeriodicMsg["balls_coordinates"] = []
       self.btPeriodicMsg["robot_status"] = "collecting_balls"
 
+   def ballDetectorTh(self):
+      return
+
+   def staticObjDetectorTh(self):
+      return
+
+   def fsmInit(self):
+      self.charge_complete = False
+      self.opperation_complete = False
+      self.close_from_base = False
+      self.charger_connected = False
+      self.battery_low = False
+      self.in_operation = False
+      self.start_command_rcvd = False
+      self.start_schedule = False
+      self.has_balls = False
+      self.ball_detected = False
+      self.static_object_detected = False
+      self.close_wall = False
+      self.stop_command_rcvd = False
+      self.load_full = False
+      self.end_schedule = False
+      self.ball_caught = False
+      self.static_object_avoided = False
+      self.is_parallel_wall = False
+      self.base_found_camera = False
+      self.base_not_found = False
+      self.message_sent = False
+      self.base_connected = False
+      self.front_ir_detected_but_not_end = False
+      self.robot_running_encoder = False
+      self.robot_running_imu = False
+      self.resume_command_rcvd = False
+      self.pause_command_rcvd = False
+
+      self.actual_state = State.INIT
+      self.next_state = State.INIT
+      self.last_state = State.INIT
+
 
    def fsmRun(self):
+      # Update booleans
+
+      # Run FSM
+      if(self.next_state == State.INIT):
+         self.init()
+      elif(self.next_state == State.CONNECTED_TO_BASE):
+         self.connectedToBase()
+      elif(self.next_state == State.SEARCHING_BASE_WALL):
+         self.searchingBaseFollowingWall()
+      elif(self.next_state == State.CONNECTING_TO_BASE):
+         self.connectingToBase()
+      elif(self.next_state == State.FINDING_WALL):
+         self.findingWall()
+      elif(self.next_state == State.SEARCHING_BASE_CAM):
+         self.searchingBaseUsingCamera()
+      elif(self.next_state == State.ROBOT_STUCK):
+         self.robotStuck()
+      elif(self.next_state == State.WAITING_FOR_CHARGER):
+         self.waitingForCharger()
+      elif(self.next_state == State.UNLOADING):
+         self.unloading()
+      elif(self.next_state == State.WAITING_FOR_CMD_OR_SCHEDULE):
+         self.waitingForStartCommandOrSchedule()
+      elif(self.next_state == State.CHARGING):
+         self.charging()
+      elif(self.next_state == State.SEARCHING_BALLS):
+         self.searchingForBall()
+      elif(self.next_state == State.AVOIDING_WALL):
+         self.avoidingWall()
+      elif(self.next_state == State.AVOIDING_STATIC_OBJECT):
+         self.avoidingStaticObject()
+      elif(self.next_state == State.PAUSED):
+         self.robotPaused()
+      elif(self.next_state == State.CATCHING_BALL):
+         self.catchingBall()
+      elif(self.next_state == State.BALL_STUCK):
+         self.ballStuck()
+      elif(self.next_state == State.WAITING_USER):
+         self.waitForUser()
+
+
+   def init(self):
+      # Entry
+      if(self.actual_state == State.INIT):
+         self.actual_state = self.next_state
+      
+      # Exit
+      if(self.charger_connected == True):
+         self.next_state = State.CHARGING
+         self.last_state = self.actual_state
+      elif(self.base_connected == True):
+         self.next_state = State.CONNECTED_TO_BASE
+         self.last_state = self.actual_state
+      elif(self.base_connected == False):
+         self.next_state = State.SEARCHING_BASE_WALL
+         self.last_state = self.actual_state
       
    def searchingBaseFollowingWall(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.SEARCHING_BASE_WALL):
+         self.actual_state = self.next_state
+      
+      # Do
+      self.moveParallelWall()
+      self.findIR()
+      
+      # Exit
+      if(self.close_from_base == True):
+         self.next_state = State.CONNECTING_TO_BASE
+         self.last_state = self.actual_state
+      elif(self.close_wall == False):
+         self.next_state = State.FINDING_WALL
+         self.last_state = self.actual_state
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
    
+   def findingWall(self):
+      # Entry
+      if(self.actual_state != State.FINDING_WALL):
+         self.actual_state = self.next_state
+      
+      # Do
+      self.findWall()
+      
+      # Exit
+      if(self.close_wall == True):
+         self.next_state = State.SEARCHING_BASE_WALL
+         self.last_state = self.actual_state
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+
    def connectingToBase(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.CONNECTING_TO_BASE):
+         self.actual_state = self.next_state
+      
+      # Do
+      self.steerBase()
+
+      # Exit
+      if(self.base_connected == True):
+         self.next_state = State.CONNECTED_TO_BASE
+         self.last_state = self.actual_state
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
 
    def searchingBaseUsingCamera(self):
-      print("Not implemented")
-      return
+      ## REVIEW THIS BEFORE CONTINUE
+      # Entry
+      if(self.actual_state != State.SEARCHING_BASE_CAM):
+         self.actual_state = self.next_state
+      
+      # Do
+      self.findIR()
+
+      # Exit
+      if(self.base_not_found == True):
+         self.next_state = State.SEARCHING_BASE_WALL
+         self.last_state = self.actual_state
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
 
    def connectedToBase(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.CONNECTED_TO_BASE):
+         self.actual_state = self.next_state
+      
+      # Do
+      self.calibrateSensors()
+      
+      # Exit
+      if(self.battery_low == True):
+         self.next_state = State.WAITING_FOR_CHARGER
+         self.last_state = self.actual_state
+      elif(self.has_balls):
+         self.next_state = State.UNLOADING
+         self.last_state = self.actual_state
+      elif(self.opperation_complete == True):
+         self.next_state = State.WAITING_FOR_CMD_OR_SCHEDULE
+         self.last_state = self.actual_state
    
-   def watingForCharger(self):
-      print("Not implemented")
-      return
+   def waitingForCharger(self):
+      # Entry
+      if(self.actual_state != State.WAITING_FOR_CHARGER):
+         self.actual_state = self.next_state
+      
+      # Do
+      
+      # Exit
+      if(self.charger_connected == True):
+         self.next_state = State.CHARGING
+         self.last_state = self.actual_state
 
    def unloading(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.UNLOADING):
+         start_time = time.time()
+         self.actual_state = self.next_state
+      
+      # Do
+      
+      # Exit
+      if(time.time() - start_time >= 15):
+         self.next_state = State.CONNECTED_TO_BASE
+         self.last_state = self.actual_state
    
    def charging(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.WAITING_FOR_CHARGER):
+         self.disablePeripherals()
+         self.actual_state = self.next_state
+      
+      # Do
+
+      
+      # Exit
+      if(self.charge_complete == True and self.charger_connected == False):
+         self.enablePeripherals()
+         self.next_state = State.CONNECTED_TO_BASE
+         self.last_state = self.actual_state
    
    def waitingForStartCommandOrSchedule(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.WAITING_FOR_CMD_OR_SCHEDULE):
+         self.disablePeripherals()
+         self.actual_state = self.next_state
+      
+      # Do
+
+      
+      # Exit
+      if(self.start_command_rcvd == True or self.start_schedule == True):
+         self.enablePeripherals()
+         self.next_state = State.SEARCHING_BALLS
+         self.last_state = self.actual_state
    
    def searchingForBall(self):
-      print("Not implemented")
-      return
-   
+      # Entry
+      if(self.actual_state != State.SEARCHING_BALLS):
+         self.actual_state = self.next_state
+      
+      # Do
+      self.moveInPattern()
+      
+      # Exit
+      if(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+      elif(self.close_wall == True):
+         self.next_state = State.AVOIDING_WALL
+         self.last_state = self.actual_state
+      elif(self.static_object_detected == True):
+         self.next_state = State.AVOIDING_STATIC_OBJECT
+         self.last_state = self.actual_state
+      elif(self.pause_command_rcvd == True):
+         self.next_state = State.PAUSED
+         self.last_state = self.actual_state
+      elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
+         self.next_state = State.SEARCHING_BASE_CAM
+         self.last_state = self.actual_state
+      elif(self.ball_detected == True):
+         self.next_state = State.CATCHING_BALL
+         self.last_state = self.actual_state
+      
    def avoidingWall(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.AVOIDING_WALL):
+         self.actual_state = self.next_state
+      
+      # Do
+      self.moveParallelWall()
+      
+      # Exit
+      if(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+      elif(self.close_wall == True):
+         self.next_state = State.SEARCHING_BALLS
+         self.last_state = self.actual_state
+      elif(self.pause_command_rcvd == True):
+         self.next_state = State.PAUSED
+         self.last_state = self.actual_state
 
    def avoidingStaticObject(self):
-      print("Not implemented")
-      return
+      if(self.actual_state != State.AVOIDING_STATIC_OBJECT):
+         self.reduceSpeed()
+         self.actual_state = self.next_state
+      
+      # Do
+      self.moveAroundObject()
+      
+      # Exit
+      if(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+      elif(self.static_object_avoided == True):
+         self.increaseSpeed()
+         self.next_state = State.SEARCHING_BALLS
+         self.last_state = self.actual_state
+      elif(self.pause_command_rcvd == True):
+         self.next_state = State.PAUSED
+         self.last_state = self.actual_state
    
    def robotPaused(self):
-      print("Not implemented")
-      return
+      if(self.actual_state != State.AVOIDING_STATIC_OBJECT):
+         self.stopMotors()
+         self.actual_state = self.next_state
+      
+      # Do
+      
+      # Exit
+      if(self.static_object_avoided == True):
+         self.next_state = self.last_state
+         self.last_state = self.actual_state
    
    def catchingBall(self):
-      print("Not implemented")
-      return
+      if(self.actual_state != State.CATCHING_BALL):
+         self.reduceSpeed()
+         self.increaseVacuumPower()
+         self.actual_state = self.next_state
+      
+      # Do
+      self.approachBall()
+      
+      # Exit
+      if(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+      elif(self.ball_caught == True):
+         self.increaseSpeed()
+         self.reduceVacuumPower()
+         self.next_state = State.SEARCHING_BALLS
+         self.last_state = self.actual_state
+      elif(self.front_ir_detected_but_not_end == True):
+         self.next_state = State.BALL_STUCK
+         self.last_state = self.actual_state
+      elif(self.pause_command_rcvd == True):
+         self.next_state = State.PAUSED
+         self.last_state = self.actual_state
 
    def ballStuck(self):
-      print("Not implemented")
-      return
+      if(self.actual_state != State.BALL_STUCK):
+         self.stopMotors()
+         start_time = time.time()
+         self.actual_state = self.next_state
+      
+      # Do
+      self.sendWarningUser()
+
+      # Exit
+      if(self.front_ir_detected_but_not_end == True):
+         self.next_state = State.SEARCHING_BALLS
+         self.last_state = self.actual_state
+      elif(time.time() - start_time > 3):
+         self.next_state = State.WAITING_USER
+         self.last_state = self.actual_state
 
    def waitForUser(self):
-      print("Not implemented")
-      return
+      if(self.actual_state != State.WAITING_USER):
+         self.stopMotors()
+         self.actual_state = self.next_state
+      
+      # Do
+      
+      # Exit
    
    def robotStuck(self):
       print("Not implemented")
       return
 
    def baseNotFound(self):
+      print("Not implemented")
+      return
+
+   def findWall(self):
+      print("Not implemented")
+      return
+
+   def moveParallelWall(self):
+      print("Not implemented")
+      return
+
+   def steerBase(self):
+      print("Not implemented")
+      return
+   
+   def findIR(self):
+      print("Not implemented")
+      return
+   
+   def calibrateSensors(self):
+      print("Not implemented")
+      return
+   
+   def enablePeripherals(self):
+      print("Not implemented")
+      return
+
+   def disablePeripherals(self):
+      print("Not implemented")
+      return
+   
+   def moveInPattern(self):
+      print("Not implemented")
+      return
+
+   def reduceSpeed(self):
+      print("Not implemented")
+      return
+
+   def moveAroundObject(self):
+      print("Not implemented")
+      return
+   
+   def increaseSpeed(self):
+      print("Not implemented")
+      return
+   
+   def stopMotors(self):
+      print("Not implemented")
+      return
+   
+   def increaseVacuumPower(self):
+      print("Not implemented")
+      return
+
+   def reduceVacuumPower(self):
+      print("Not implemented")
+      return
+   
+   def approachBall(self):
+      print("Not implemented")
+      return
+   
+   def sendWarningUser(self):
       print("Not implemented")
       return
