@@ -30,22 +30,22 @@ MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / WHEEL_CIRCUMFERENCE_IN_M
 # controlling motors, etc.
 class Peripherals:
    def __init__(self):
-      self.vacuumMotor      = PWMOutputDevice(pin=12)
+      self.vacuumMotor      = PWMOutputDevice(pin=12, frequency=1000)
       self.leftMotor        = Motor(26, 19)
       self.rightMotor       = Motor(21, 20)
       self.encoderLeft      = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
       self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-      # self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
-      # self.rightDistSens   = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
-      # self.backDistSens    = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
+      self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+      self.rightDistSens   = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
+      self.backDistSens    = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
       self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
       self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
       self.servo            = Servo(pin=16)
-      self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
-      self.chargerCnnctd    = AnalogIn(self.ads, ADS.P0)
-      self.vacuumBattery    = AnalogIn(self.ads, ADS.P2)
-      self.elctrnicsBattery = AnalogIn(self.ads, ADS.P1)
+      # self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
+      # self.chargerCnnctd    = AnalogIn(self.ads, ADS.P0)
+      # self.vacuumBattery    = AnalogIn(self.ads, ADS.P2)
+      # self.elctrnicsBattery = AnalogIn(self.ads, ADS.P1)
       # self.imu            = IMU.ICM20948(busio.I2C(scl=3, sda=2), 0x68)
       self.leftMotorTargetStepsPerS:  float = 0
       self.rightMotorTargetStepsPerS: float = 0
@@ -89,14 +89,14 @@ class Peripherals:
    def getRightMotorTargetStepsPerS(self) -> float:
       return self.rightMotorTargetStepsPerS
    
-   # def getLeftDistance(self) -> float:
-   #    return self.leftDistSens.distance * 100.0
+   def getLeftDistance(self) -> float:
+      return self.leftDistSens.distance * 100.0
    def getFrontDistance(self) -> float:
       return self.frontDistSens.distance * 100.0
-   # def getRightDistance(self) -> float:
-   #    return self.rightDistSens.distance * 100.0
-   # def getBackDistance(self) -> float:
-   #    return self.backDistSens.distance * 100.0
+   def getRightDistance(self) -> float:
+      return self.rightDistSens.distance * 100.0
+   def getBackDistance(self) -> float:
+      return self.backDistSens.distance * 100.0
 
    def setVacuumMotorPWM(self, pwm: float):
       if (pwm >= 0) and (pwm <= 1):
@@ -107,7 +107,22 @@ class Peripherals:
       currTime = time.time()
       timeDiff = currTime - self.lastStepsReadTime
 
-      if timeDiff < 2.0:
+      if self.currLeftMotorPWM > 0:
+         if self.robotDirection == Direction.FORWARD:
+            self.leftMotor.forward(speed=self.currLeftMotorPWM)
+         else:
+            self.leftMotor.backward(speed=self.currLeftMotorPWM)
+      else:
+         self.leftMotor.stop()
+      if self.currRightMotorPWM > 0:
+         if self.robotDirection == Direction.FORWARD:
+            self.rightMotor.forward(speed=self.currRightMotorPWM)
+         else:
+            self.rightMotor.backward(speed=self.currRightMotorPWM)
+      else:
+         self.rightMotor.stop()
+
+      if timeDiff < 1:
          return
 
       self.lastStepsReadTime = currTime
@@ -139,20 +154,6 @@ class Peripherals:
       self.currLeftMotorPWM  = leftMotorPWM
       self.currRightMotorPWM = rightMotorPWM
 
-      if leftMotorPWM > 0:
-         if self.robotDirection == Direction.FORWARD:
-            self.leftMotor.forward(speed=leftMotorPWM)
-         else:
-            self.leftMotor.backward(speed=leftMotorPWM)
-      else:
-         self.leftMotor.stop()
-      if rightMotorPWM > 0:
-         if self.robotDirection == Direction.FORWARD:
-            self.rightMotor.forward(speed=rightMotorPWM)
-         else:
-            self.rightMotor.backward(speed=rightMotorPWM)
-      else:
-         self.rightMotor.stop()
 
    # Sets the target speed for the robot to move forward
    # Left and right relative to the robot itself
