@@ -146,3 +146,74 @@ class ControlTask:
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
       self.btPeriodicMsg["robot_status"] = "collecting_balls"
+
+
+   def fsmRun(self):
+      
+   def searchingBaseFollowingWall(self):
+      print("Not implemented")
+      return
+   
+   def connectingToBase(self):
+      print("Not implemented")
+      return
+
+   def searchingBaseUsingCamera(self):
+      print("Not implemented")
+      return
+
+   def connectedToBase(self):
+      print("Not implemented")
+      return
+   
+   def watingForCharger(self):
+      print("Not implemented")
+      return
+
+   def unloading(self):
+      print("Not implemented")
+      return
+   
+   def charging(self):
+      print("Not implemented")
+      return
+   
+   def waitingForStartCommandOrSchedule(self):
+      print("Not implemented")
+      return
+   
+   def searchingForBall(self):
+      print("Not implemented")
+      return
+   
+   def avoidingWall(self):
+      print("Not implemented")
+      return
+
+   def avoidingStaticObject(self):
+      print("Not implemented")
+      return
+   
+   def robotPaused(self):
+      print("Not implemented")
+      return
+   
+   def catchingBall(self):
+      print("Not implemented")
+      return
+
+   def ballStuck(self):
+      print("Not implemented")
+      return
+
+   def waitForUser(self):
+      print("Not implemented")
+      return
+   
+   def robotStuck(self):
+      print("Not implemented")
+      return
+
+   def baseNotFound(self):
+      print("Not implemented")
+      return
