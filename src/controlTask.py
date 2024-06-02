@@ -58,6 +58,7 @@ class ControlTask:
          self.peripherals.setVacuumMotorPWM(0.8)
 
       self.peripherals.controlMotorsPWM()
+      self.peripherals.updatePositionOdometry()
 
       ### bluetooth periodic message update ###
       self.updateBtPeriodicMsg()
