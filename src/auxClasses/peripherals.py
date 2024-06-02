@@ -7,6 +7,7 @@ from adafruit_ads1x15.analog_in import AnalogIn
 import adafruit_ads1x15.ads1115 as ADS
 import adafruit_icm20x as IMU
 from auxClasses.infraredSensorMngr import InfraredSensorMngr
+from auxClasses.encoderSensorMngr import EncoderSensorMnger
 from enum import Enum
 
 MOTOR_STEPS_PER_TURN = 872
@@ -40,6 +41,7 @@ class Peripherals:
       self.rightDistSens   = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
       self.backDistSens    = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
       self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
+      self.robotOdom        = EncoderSensorMnger()
       self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
       self.servo            = Servo(pin=16)
       # self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
@@ -273,3 +275,6 @@ class Peripherals:
       return self.tubeSensMngr.ballCount
    def isBallStuck(self) -> bool:
       return self.tubeSensMngr.isBallStuck()
+   
+   def updatePositionOdometry(self):
+      return self.robotOdom.routine(self.encoderLeft, self.encoderRight)
