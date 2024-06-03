@@ -4,6 +4,7 @@ import queue
 import json
 from auxClasses.peripherals import Peripherals
 from enum import Enum
+import math
 
 class State(Enum):
    INIT = 0,
@@ -47,6 +48,7 @@ class ControlTask:
          "robot_status": "collecting_balls", # Options: collecting_balls, searching_for_balls, returning_to_base, paused
          "robot_error": "base_not_found" # Options: base_not_found, robot_stuck, ball_stuck
       }
+      self.balls = []
       self.thread = threading.Thread(target=self.run)
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
       self.static_obj_detector_th = threading.Thread(target=self.run)
@@ -613,3 +615,46 @@ class ControlTask:
    def sendWarningUser(self):
       print("Not implemented")
       return
+   
+   def nothing(x):
+    pass
+
+   def convert(self, dist, theta):
+      x = dist*math.sin(theta)
+      y = dist*math.cos(theta)
+      return (x, y)
+
+   def verifier():
+      for i in range(0, len(balls)):
+         if(i > len(balls)):
+               break
+         if(balls[i][1] < 0):
+               balls.pop(i)
+               i -= 1
+         elif(balls[i][1] > 50):
+               balls[i][3] += 1
+               if(balls[i][3] > 20):
+                  balls.pop(i)
+                  i -= 1
+
+   dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+
+   def addBall(x, y):
+      for ball in balls:
+         dist_x = math.fabs(x - ball[0])
+         dist_y = math.fabs(y - ball[1])
+         if(dist_x < ball[2] and dist_y < ball[2]):
+               ball[0] = x
+               ball[1] = y
+               dist_calc = dist(x,y, 0, 0)
+               print(dist_calc)
+               ball[2] = dist_calc*10.5/50 - 7
+               ball[3] = 0
+               return
+      dist_calc = dist(x,y, 0, 0)
+      balls.append([x, y, dist_calc*10.5/50 - 7, 0])
+      
+   def updateMap(delta_x, delta_y):
+      for ball in balls:
+         ball[0] += delta_x
+         ball[1] += delta_y
