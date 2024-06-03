@@ -33,7 +33,7 @@ class Peripherals:
       self.vacuumMotor      = PWMOutputDevice(pin=12, frequency=1000)
       self.leftMotor        = Motor(26, 19)
       self.rightMotor       = Motor(21, 20)
-      self.encoderLeft      = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
+      self.encoderLeft      = RotaryEncoder(a=6, b=5, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
       self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
       # self.rightDistSens  = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
