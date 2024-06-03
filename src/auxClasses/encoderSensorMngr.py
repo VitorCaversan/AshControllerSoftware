@@ -25,10 +25,10 @@ class EncoderSensorMnger:
         # 1. Calculate the encoder count difference
         leftMotorStepsDiff  = encoderLeft.steps - self.lastLeftMotorSteps
         rightMotorStepsDiff = encoderRight.steps - self.lastRightMotorSteps
-        print("Encoder left: ", encoderLeft.steps)
-        print("Encoder right: ", encoderRight.steps)
-        print("Encoder left diff: ", leftMotorStepsDiff)
-        print("Encoder right diff: ", rightMotorStepsDiff)
+        # print("Encoder left: ", encoderLeft.steps)
+        # print("Encoder right: ", encoderRight.steps)
+        # print("Encoder left diff: ", leftMotorStepsDiff)
+        # print("Encoder right diff: ", rightMotorStepsDiff)
         self.lastLeftMotorSteps  = encoderLeft.steps
         self.lastRightMotorSteps = encoderRight.steps
 

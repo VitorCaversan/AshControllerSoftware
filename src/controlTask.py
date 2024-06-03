@@ -11,6 +11,8 @@ import numpy as np
 
 dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
+
+
 def closest(element):
    return dist(0, 0, element[0], element[1])
    
@@ -57,8 +59,9 @@ class ControlTask:
          "robot_status": "collecting_balls", # Options: collecting_balls, searching_for_balls, returning_to_base, paused
          "robot_error": "" # Options: base_not_found, robot_stuck, ball_stuck
       }
+      self.is_rotating = False
       self.balls = []
-      self.cam = Picamera2(0)
+      self.cam = Picamera2(1)
       cfg = self.cam.create_preview_configuration(main={'size': (1920, 1080)})
       self.cam.configure(cfg)
       # cam.set_controls({"FrameRate": 5})
@@ -76,12 +79,13 @@ class ControlTask:
 
    def runOdometry(self):
       while(True):
-         # self.peripherals.controlMotorsPWM()
+         if(self.is_rotating == False):
+            self.peripherals.controlMotorsPWM()
          self.peripherals.updatePositionOdometry()
          odom = self.peripherals.getOdometry()
-         self.updateMap(odom[0] - self.last_position[1], odom[1] - self.last_position[0], odom[2] - self.last_position[2])
-         self.last_position[0] = odom[1]
-         self.last_position[1] = odom[0]
+         self.updateMap(odom[1]*100 - self.last_position[1], odom[0]*100 - self.last_position[0], odom[2] - self.last_position[2])
+         self.last_position[0] = odom[0]*100
+         self.last_position[1] = odom[1]*100
          self.last_position[2] = odom[2]
          time.sleep(0.1)
    
@@ -240,8 +244,9 @@ class ControlTask:
          a = self.cam.capture_array("main")
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
          a = cv2.resize(a, (960, 540))
+         # a = cv2.rotate(a, cv2.ROTATE_180)
          
-         self.updateMap(0, 0)
+         # self.updateMap(0, 0, 0)
 
          if a is None:
             continue
@@ -727,26 +732,32 @@ class ControlTask:
       if(len(self.balls) == 0):
          return
       ball = self.balls[0]
-      while(ball[0] != 0):
-         if(ball[0] < 0):
-            self.peripherals.rotate(0, 0.03490)
-         else:
-            self.peripherals.rotate(1, 0.03490)
-         time.sleep(0.11)
-      
+
+      # self.is_rotating = True
+      # time.sleep(1)
+      # while(ball[0] > 2 or ball[0] < -2):
+      #    angle = math.atan(ball[0]/ball[1])
+      #    if(ball[0] < 0):
+      #       self.peripherals.rotate(0, 0.1, 1)
+      #    else:
+      #       self.peripherals.rotate(1, 0.1, 1)
+      #    time.sleep(0.01)
+      # self.is_rotating = False
       self.peripherals.driveRobotForward(0.1, 0, 0)
       time.sleep(0.3)
       self.peripherals.driveRobotForward(0.2, 0, 0)
       time.sleep(0.3)
       self.peripherals.driveRobotForward(0.3, 0, 0)
       time.sleep(0.3)
-      while(ball[1] > 14):
+      while(ball[1] > 24):
          self.peripherals.driveRobotForward(0.5, 0, 0)
          time.sleep(0.01)
       
+      self.peripherals.driveRobotForward(0.1, 0, 0)
       self.peripherals.setVacuumMotorPWM(0.1)
       time.sleep(0.5)
       self.peripherals.setVacuumMotorPWM(0.3)
+      time.sleep(1)
 
       while(ball[1] > 8):
          self.peripherals.driveRobotForward(0.3, 0, 0)
@@ -787,22 +798,22 @@ class ControlTask:
          if(dist_x < ball[2] and dist_y < ball[2]):
                ball[0] = x
                ball[1] = y
-               dist_calc = self.dist(x,y, 0, 0)
+               dist_calc = dist(x,y, 0, 0)
                print(dist_calc)
                ball[2] = dist_calc*10.5/50 - 7
                ball[3] = 0
                return
-      dist_calc = self.dist(x,y, 0, 0)
+      dist_calc = dist(x,y, 0, 0)
       self.balls.append([x, y, dist_calc*10.5/50 - 7, 0])
-      self.global_map.append([x + self.last_position[0], y + self.last_position[1], dist_calc*10.5/50 - 7, 0])
+      global_map.append([x + self.last_position[0], y + self.last_position[1], dist_calc*10.5/50 - 7, 0])
       # self.global_map.sort(key=closest)
       
    def updateMap(self, delta_x, delta_y, delta_theta):
-      mat = [[math.cos(-delta_theta), -math.sin(-delta_theta)], [math.sin(-delta_theta), mat.cos(-delta_theta)]]
+      mat = [[math.cos(delta_theta), -math.sin(delta_theta)], [math.sin(delta_theta), math.cos(delta_theta)]]
       for ball in self.balls:
-         ball[0] = ball[0]*mat[0][0] + ball[1]*mat[1][0]
-         ball[1] = ball[0]*mat[0][1] + ball[1]*mat[1][1]
+         # ball[0] = ball[0]*mat[0][0] + ball[1]*mat[1][0]
+         # ball[1] = ball[0]*mat[0][1] + ball[1]*mat[1][1]
          ball[0] -= delta_x
          ball[1] -= delta_y
 
-      self.balls.sort(key=closest())
+      # self.balls.sort(key=closest())
