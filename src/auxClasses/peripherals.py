@@ -30,15 +30,15 @@ MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / WHEEL_CIRCUMFERENCE_IN_M
 # controlling motors, etc.
 class Peripherals:
    def __init__(self):
-      self.vacuumMotor      = PWMOutputDevice(pin=12)
+      self.vacuumMotor      = PWMOutputDevice(pin=12, frequency=1000)
       self.leftMotor        = Motor(26, 19)
       self.rightMotor       = Motor(21, 20)
       self.encoderLeft      = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
       self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-      # self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
-      # self.rightDistSens   = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
-      # self.backDistSens    = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
+      # self.rightDistSens  = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+      # self.backDistSens   = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
+      # self.frontDistSens  = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
       self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
       self.robotOdom        = EncoderSensorMnger()
       self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
