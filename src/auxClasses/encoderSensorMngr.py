@@ -53,11 +53,11 @@ class EncoderSensorMnger:
 
         print(f"Current position: {self.position_x} {self.position_y} {self.rotation_z}")
         
-    def getLocation():
+    def getLocation(self):
         # Return the position X, Y and the rotation in the 
         # Z axis of the robot related to the base coordinate system
         # Ouput format: (X, Y, Z)
         # X: coordinate in the X axis related to the base coordinate system
         # Y: coordinate in the Y axis related to the base coordinate system
         # Z: angle in radian of the robot
-        pass
+        return (self.position_x, self.position_y, self.rotation_z)

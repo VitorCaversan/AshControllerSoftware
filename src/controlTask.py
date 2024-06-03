@@ -5,7 +5,15 @@ import json
 from auxClasses.peripherals import Peripherals
 from enum import Enum
 import math
+import cv2
+from picamera2 import Picamera2, Preview
+import numpy as np
 
+dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+
+def closest(element):
+   return dist(0, 0, element[0], element[1])
+   
 class State(Enum):
    INIT = 0,
    CONNECTED_TO_BASE = 1,
@@ -25,6 +33,8 @@ class State(Enum):
    CATCHING_BALL = 15,
    BALL_STUCK = 16,
    WAITING_USER = 17
+
+global_map = []
 
 class ControlTask:
    def __init__(self, mainQueue: queue.Queue, ctrlQueue: queue.Queue):
@@ -48,21 +58,39 @@ class ControlTask:
          "robot_error": "" # Options: base_not_found, robot_stuck, ball_stuck
       }
       self.balls = []
+      self.cam = Picamera2(0)
+      cfg = self.cam.create_preview_configuration(main={'size': (1920, 1080)})
+      self.cam.configure(cfg)
+      # cam.set_controls({"FrameRate": 5})
+      self.cam.resolution = (1920, 1080)
+      self.cam.framerate = 10
+      self.last_position = [0, 0, 0]
+
+      self.cam.start()
+      self.stereo = cv2.StereoBM.create()
       self.thread = threading.Thread(target=self.run)
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
       self.static_obj_detector_th = threading.Thread(target=self.run)
-      self.thread2 = threading.Thread(target=self.runOthers)
+      self.odometry_thread = threading.Thread(target=self.runOdometry)
+      self.bluetooth_thread = threading.Thread(target=self.bluetoothSenderTh)
 
-   def runOthers(self):
+   def runOdometry(self):
       while(True):
          # self.peripherals.controlMotorsPWM()
          self.peripherals.updatePositionOdometry()
-
-         ### bluetooth periodic message update ###
-         # print("Before updateBtPeriodicMsg")
+         odom = self.peripherals.getOdometry()
+         self.updateMap(odom[0] - self.last_position[1], odom[1] - self.last_position[0], odom[2] - self.last_position[2])
+         self.last_position[0] = odom[1]
+         self.last_position[1] = odom[0]
+         self.last_position[2] = odom[2]
+         time.sleep(0.1)
+   
+   def bluetoothSenderTh(self):
+      while True:
          self.updateBtPeriodicMsg()
          self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
          time.sleep(0.5)
+
 
    def runRobot(self):
       print("running")
@@ -119,10 +147,12 @@ class ControlTask:
       # time.sleep(3)
       # self.peripherals.driveRobotBackward(0.0, 0, 0)
       # self.peripherals.controlMotorsPWM()
-      self.peripherals.rotate(0, 3.1415, 0.5)
-      self.peripherals.stopRobot()
+      # self.peripherals.rotate(0, 3.1415, 0.5)
+      # self.peripherals.stopRobot()
       # print("Batt ", self.peripherals.getLowerBatteryLvl())
       # self.peripherals.rotate(0, 1)
+
+      self.approachBall()
       print("FINALIZADO")
 
       # adsCtrlRate = 30.0 / 100.0
@@ -161,7 +191,6 @@ class ControlTask:
 
       print("Before put")
       
-
    def run(self):
       # 
       while(1):
@@ -176,17 +205,22 @@ class ControlTask:
 
    def start(self):
       self.thread.start()
-      self.thread2.start()
+      self.odometry_thread.start()
+      self.bluetooth_thread.start()
+      self.ball_detector_th.start()
    
    def stop(self):
       self.peripherals.close()
       self.thread.join()
-      self.thread2.join()
+      self.odometry_thread.join()
+      self.ball_detector_th.join()
+      self.bluetooth_thread.join()
 
    def safeExit(self, signum, frame):
       self.peripherals.close()
-      self.thread.join()
-      self.thread2.join()
+      self.odometry_thread.join()
+      self.ball_detector_th.join()
+      self.bluetooth_thread.join()
       exit(1)
    
    def updateBtPeriodicMsg(self):
@@ -200,7 +234,64 @@ class ControlTask:
       self.btPeriodicMsg["robot_status"] = "collecting_balls"
 
    def ballDetectorTh(self):
-      return
+      # mean = 0
+      i = 0
+      while True:
+         a = self.cam.capture_array("main")
+         a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
+         a = cv2.resize(a, (960, 540))
+         
+         self.updateMap(0, 0)
+
+         if a is None:
+            continue
+
+         a_grey = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
+         # a_grey_up = a_grey[300:, :]
+         a_grey = a_grey[300:, :]
+         a_grey = cv2.normalize(a_grey, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+         # (a_t, threshInv) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+         a_blur = cv2.GaussianBlur(a_grey, (17, 17), 0)
+         circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=13, maxRadius=46)
+         # print(circles)
+         if circles is not None:
+            circles = np.uint16(np.around(circles))
+            # ball_added = False
+            for i in circles[0, :]:
+                  print(a_grey[i[1]][i[0]])
+                  if(a_grey[i[1]][i[0]] > 25):
+                     cv2.circle(a_grey, (i[0], i[1]), 1, (0,100,100), 3)
+                     cv2.circle(a_grey, (i[0], i[1]), i[2], (255,0,255), 3)
+
+                     dist_ball = pow(i[2], -1.05)
+                     dist_ball *= 2495
+                     horizontal_dist = 2*(i[0] - 480)/i[2]
+                     theta = math.asin(horizontal_dist/dist_ball)
+                     dist_center_ball = math.sqrt((dist_ball * dist_ball) + (3 * 3) - 2 * dist_ball * 3 * theta)
+                     theta_center = math.asin((horizontal_dist + 3)/dist_center_ball)
+                     print("dist: ", i[2], " pixel")
+                     print("dist: ", dist_ball, " cm")
+                     print("hor dist: ", horizontal_dist, " cm")
+                     print("angle with camera: ", theta*180/math.pi)
+                     print("center dist: ", dist_center_ball, " cm")
+                     print("angle with center: ", theta_center*180/math.pi)
+                     x_ball, y_ball = self.convert(dist_center_ball, theta_center)
+                     self.addBall(x_ball, y_ball)
+
+         # verifier()
+         print(self.balls)
+         # cv2.imshow("iR", threshInv) 
+         # cv2.waitKey(1)
+         # cv2.imshow("b", b_grey)
+         # cv2.waitKey(1)
+         # cv2.imshow("a", a_grey)
+         # cv2.imshow("an", a_norm)
+         # cv2.waitKey(1)
+         # print(len(a))
+         
+         if cv2.waitKey(1) == 27:
+            break
+      time.sleep(10)
 
    def staticObjDetectorTh(self):
       return
@@ -237,7 +328,6 @@ class ControlTask:
       self.actual_state = State.INIT
       self.next_state = State.INIT
       self.last_state = State.INIT
-
 
    def fsmRun(self):
       # Update booleans
@@ -279,7 +369,6 @@ class ControlTask:
          self.ballStuck()
       elif(self.next_state == State.WAITING_USER):
          self.waitForUser()
-
 
    def init(self):
       # Entry
@@ -635,52 +724,85 @@ class ControlTask:
       return
    
    def approachBall(self):
-      print("Not implemented")
+      if(len(self.balls) == 0):
+         return
+      ball = self.balls[0]
+      while(ball[0] != 0):
+         if(ball[0] < 0):
+            self.peripherals.rotate(0, 0.03490)
+         else:
+            self.peripherals.rotate(1, 0.03490)
+         time.sleep(0.11)
+      
+      self.peripherals.driveRobotForward(0.1, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.2, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.3, 0, 0)
+      time.sleep(0.3)
+      while(ball[1] > 14):
+         self.peripherals.driveRobotForward(0.5, 0, 0)
+         time.sleep(0.01)
+      
+      self.peripherals.setVacuumMotorPWM(0.1)
+      time.sleep(0.5)
+      self.peripherals.setVacuumMotorPWM(0.3)
+
+      while(ball[1] > 8):
+         self.peripherals.driveRobotForward(0.3, 0, 0)
+         time.sleep(0.01)
+         
+      self.peripherals.driveRobotForward(0.0, 0, 0)
+      self.peripherals.setVacuumMotorPWM(0.0)
+
       return
+         
    
    def sendWarningUser(self):
       print("Not implemented")
       return
-   
-   def nothing(x):
-    pass
 
    def convert(self, dist, theta):
       x = dist*math.sin(theta)
       y = dist*math.cos(theta)
       return (x, y)
 
-   def verifier():
-      for i in range(0, len(balls)):
-         if(i > len(balls)):
+   def verifier(self):
+      for i in range(0, len(self.balls)):
+         if(i > len(self.balls)):
                break
-         if(balls[i][1] < 0):
-               balls.pop(i)
+         if(self.balls[i][1] < 0):
+               self.balls.pop(i)
                i -= 1
-         elif(balls[i][1] > 50):
-               balls[i][3] += 1
-               if(balls[i][3] > 20):
-                  balls.pop(i)
+         elif(self.balls[i][1] > 50):
+               self.balls[i][3] += 1
+               if(self.balls[i][3] > 20):
+                  self.balls.pop(i)
                   i -= 1
 
-   dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
-
-   def addBall(x, y):
-      for ball in balls:
+   def addBall(self, x, y):
+      for ball in self.balls:
          dist_x = math.fabs(x - ball[0])
          dist_y = math.fabs(y - ball[1])
          if(dist_x < ball[2] and dist_y < ball[2]):
                ball[0] = x
                ball[1] = y
-               dist_calc = dist(x,y, 0, 0)
+               dist_calc = self.dist(x,y, 0, 0)
                print(dist_calc)
                ball[2] = dist_calc*10.5/50 - 7
                ball[3] = 0
                return
-      dist_calc = dist(x,y, 0, 0)
-      balls.append([x, y, dist_calc*10.5/50 - 7, 0])
+      dist_calc = self.dist(x,y, 0, 0)
+      self.balls.append([x, y, dist_calc*10.5/50 - 7, 0])
+      self.global_map.append([x + self.last_position[0], y + self.last_position[1], dist_calc*10.5/50 - 7, 0])
+      # self.global_map.sort(key=closest)
       
-   def updateMap(delta_x, delta_y):
-      for ball in balls:
-         ball[0] += delta_x
-         ball[1] += delta_y
+   def updateMap(self, delta_x, delta_y, delta_theta):
+      mat = [[math.cos(-delta_theta), -math.sin(-delta_theta)], [math.sin(-delta_theta), mat.cos(-delta_theta)]]
+      for ball in self.balls:
+         ball[0] = ball[0]*mat[0][0] + ball[1]*mat[1][0]
+         ball[1] = ball[0]*mat[0][1] + ball[1]*mat[1][1]
+         ball[0] -= delta_x
+         ball[1] -= delta_y
+
+      self.balls.sort(key=closest())

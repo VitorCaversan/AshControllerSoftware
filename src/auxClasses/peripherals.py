@@ -283,3 +283,6 @@ class Peripherals:
    
    def updatePositionOdometry(self):
       return self.robotOdom.routine(self.encoderLeft, self.encoderRight)
+   
+   def getOdometry(self):
+      return self.robotOdom.getLocation()
