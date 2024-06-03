@@ -3,6 +3,7 @@ import time
 import queue
 import json
 from auxClasses.peripherals import Peripherals
+import math
 
 class ControlTask:
    def __init__(self, mainQueue: queue.Queue, ctrlQueue: queue.Queue):
@@ -23,9 +24,21 @@ class ControlTask:
             { "X": 0.0, "Y": 0.0 },
          ],
          "robot_status": "collecting_balls", # Options: collecting_balls, searching_for_balls, returning_to_base, paused
-         "robot_error": "base_not_found" # Options: base_not_found, robot_stuck, ball_stuck
+         "robot_error": "" # Options: base_not_found, robot_stuck, ball_stuck
       }
       self.thread = threading.Thread(target=self.run)
+      self.thread2 = threading.Thread(target=self.runOthers)
+
+   def runOthers(self):
+      while(True):
+         # self.peripherals.controlMotorsPWM()
+         self.peripherals.updatePositionOdometry()
+
+         ### bluetooth periodic message update ###
+         # print("Before updateBtPeriodicMsg")
+         self.updateBtPeriodicMsg()
+         self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
+         time.sleep(0.5)
 
    def runRobot(self):
       print("running")
@@ -40,48 +53,49 @@ class ControlTask:
 
       # print("Batt ", self.peripherals.getLowerBatteryLvl())
       # self.peripherals.rotate(1, 1)
-      print("ligando aspirador")
-      self.peripherals.setVacuumMotorPWM(0.1)
-      time.sleep(0.5)
-      self.peripherals.setVacuumMotorPWM(0.3)
-      print("Subindo rampa velocidade")
-      self.peripherals.driveRobotForward(0.1, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(1)
-      self.peripherals.driveRobotForward(0.2, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(1)
-      self.peripherals.driveRobotForward(0.4, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(1)
-      self.peripherals.driveRobotForward(0.5, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(1)
-      print("parado")
-      time.sleep(3)
-      self.peripherals.driveRobotForward(0.0, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      print("desliango aspirador")
-      self.peripherals.setVacuumMotorPWM(0.1)
-      time.sleep(0.5)
-      self.peripherals.setVacuumMotorPWM(0.0)
-      time.sleep(0.5)
-      print("movendo para tras")
-      self.peripherals.driveRobotBackward(0.1, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(0.5)
-      self.peripherals.driveRobotBackward(0.2, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(0.5)
-      self.peripherals.driveRobotBackward(0.4, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(0.5)
-      self.peripherals.driveRobotBackward(0.5, 0, 0)
-      self.peripherals.controlMotorsPWM()
-      time.sleep(0.5)
-      time.sleep(3)
-      self.peripherals.driveRobotBackward(0.0, 0, 0)
-      self.peripherals.controlMotorsPWM()
+      # print("ligando aspirador")
+      # self.peripherals.setVacuumMotorPWM(0.1)
+      # time.sleep(0.5)
+      # self.peripherals.setVacuumMotorPWM(0.3)
+      # print("Subindo rampa velocidade")
+      # self.peripherals.driveRobotForward(0.1, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # self.peripherals.driveRobotForward(0.2, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # self.peripherals.driveRobotForward(0.4, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # self.peripherals.driveRobotForward(0.5, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # print("parado")
+      # time.sleep(3)
+      # self.peripherals.driveRobotForward(0.0, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # print("desliango aspirador")
+      # self.peripherals.setVacuumMotorPWM(0.1)
+      # time.sleep(0.5)
+      # self.peripherals.setVacuumMotorPWM(0.0)
+      # time.sleep(0.5)
+      # print("movendo para tras")
+      # self.peripherals.driveRobotBackward(0.1, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # self.peripherals.driveRobotBackward(0.2, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # self.peripherals.driveRobotBackward(0.4, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # self.peripherals.driveRobotBackward(0.5, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      # time.sleep(1)
+      # time.sleep(3)
+      # self.peripherals.driveRobotBackward(0.0, 0, 0)
+      # self.peripherals.controlMotorsPWM()
+      self.peripherals.rotate(0, 3.1415, 0.5)
       self.peripherals.stopRobot()
       # print("Batt ", self.peripherals.getLowerBatteryLvl())
       # self.peripherals.rotate(0, 1)
@@ -107,12 +121,12 @@ class ControlTask:
       #    self.peripherals.driveRobotForward(speed=(adsCtrlRate*0.8), curveLeftRate=0.0, curveRightRate=0.8)
       #    self.peripherals.setVacuumMotorPWM(0.8)
 
-      self.peripherals.controlMotorsPWM()
-      self.peripherals.updatePositionOdometry()
+      # self.peripherals.controlMotorsPWM()
+      # self.peripherals.updatePositionOdometry()
 
       ### bluetooth periodic message update ###
       # print("Before updateBtPeriodicMsg")
-      self.updateBtPeriodicMsg()
+      # self.updateBtPeriodicMsg()
 
       # if self.peripherals.isBallStuck():
       #    self.btPeriodicMsg["robot_error"] = "ball_stuck"
@@ -122,7 +136,7 @@ class ControlTask:
       #    self.btPeriodicMsg["robot_error"] = ""
 
       print("Before put")
-      self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
+      
 
    def run(self):
       # 
@@ -138,14 +152,17 @@ class ControlTask:
 
    def start(self):
       self.thread.start()
+      self.thread2.start()
    
    def stop(self):
       self.peripherals.close()
       self.thread.join()
+      self.thread2.join()
 
    def safeExit(self, signum, frame):
       self.peripherals.close()
       self.thread.join()
+      self.thread2.join()
       exit(1)
    
    def updateBtPeriodicMsg(self):

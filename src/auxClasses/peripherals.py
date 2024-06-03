@@ -11,7 +11,7 @@ from auxClasses.encoderSensorMngr import EncoderSensorMnger
 from enum import Enum
 
 MOTOR_STEPS_PER_TURN = 872
-ROBOT_RADIUS_FROM_CENTER_IN_M = 0.1
+ROBOT_RADIUS_FROM_CENTER_IN_M = 0.115
 WHEEL_DIAMETER_IN_M = 0.068
 # Enum for forward and backward directions
 class Direction(Enum):
@@ -34,7 +34,7 @@ class Peripherals:
       self.vacuumMotor      = PWMOutputDevice(pin=12, frequency=1000)
       self.leftMotor        = Motor(26, 19)
       self.rightMotor       = Motor(21, 20)
-      self.encoderLeft      = RotaryEncoder(a=5, b=6, max_steps=0) # 872 steps/turn
+      self.encoderLeft      = RotaryEncoder(a=6, b=5, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
       self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
       self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
@@ -230,23 +230,28 @@ class Peripherals:
 
       rebasedSpeed = (speed * (PWM_FOR_MAX_SPEED - PWM_FOR_MIN_SPEED)) + PWM_FOR_MIN_SPEED
 
+      archSize = angle * ROBOT_RADIUS_FROM_CENTER_IN_M
+      stepsToTurn = archSize * MOTOR_STEPS_PER_M
+
       if (direction == 0):
          initialSteps = self.encoderRight.steps
          self.rightMotor.forward(speed=rebasedSpeed)
          self.leftMotor.backward(speed=rebasedSpeed)
+         while (abs(self.encoderRight.steps - initialSteps) < stepsToTurn):
+            print(rebasedSpeed)
+            print("Steps rotation: ", abs(self.encoderRight.steps - initialSteps))
+            time.sleep(0.01)
       elif (direction == 1):
          initialSteps = self.encoderLeft.steps
          self.leftMotor.forward(speed=rebasedSpeed)
          self.rightMotor.backward(speed=rebasedSpeed)
+         while (abs(self.encoderLeft.steps - initialSteps) < stepsToTurn):
+            print(rebasedSpeed)
+            print("Steps rotation: ", abs(self.encoderLeft.steps - initialSteps))
+            time.sleep(0.01)
       else:
          print("Invalid direction")
          return
-      
-      archSize = angle * ROBOT_RADIUS_FROM_CENTER_IN_M
-      stepsToTurn = archSize * MOTOR_STEPS_PER_M
-
-      while (abs(encoderSteps[direction] - initialSteps) < stepsToTurn):
-         time.sleep(0.01)
       
       self.leftMotor.stop()
       self.rightMotor.stop()
