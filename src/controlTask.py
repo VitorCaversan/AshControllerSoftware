@@ -34,7 +34,8 @@ class State(Enum):
    PAUSED = 14,
    CATCHING_BALL = 15,
    BALL_STUCK = 16,
-   WAITING_USER = 17
+   WAITING_USER = 17,
+   BASE_NOT_FOUND = 18
 
 global_map = []
 
@@ -60,17 +61,32 @@ class ControlTask:
          "robot_error": "" # Options: base_not_found, robot_stuck, ball_stuck
       }
       self.is_rotating = False
+      self.status = ""
       self.balls = []
-      self.cam = Picamera2(1)
+      self.cam = Picamera2(0)
+      self.cam1 = Picamera2(1)
       cfg = self.cam.create_preview_configuration(main={'size': (1920, 1080)})
+      cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
       self.cam.configure(cfg)
+      self.cam1.configure(cfg1)
       # cam.set_controls({"FrameRate": 5})
       self.cam.resolution = (1920, 1080)
+      self.cam1.resolution = (1920, 1080)
       self.cam.framerate = 10
+      self.cam1.framerate = 10
       self.last_position = [0, 0, 0]
 
       self.cam.start()
-      self.stereo = cv2.StereoBM.create()
+      self.cam1.start()
+      self.stereo = cv2.StereoSGBM_create()
+      self.stereo.setNumDisparities(160)
+      self.stereo.setBlockSize(9)
+      self.stereo.setUniquenessRatio(5)
+      self.stereo.setSpeckleRange(18)
+      self.stereo.setSpeckleWindowSize(7)
+      self.stereo.setDisp12MaxDiff(0)
+      self.stereo.setMinDisparity(110)
+      self.stereo.setPreFilterCap(5)
       self.thread = threading.Thread(target=self.run)
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
       self.static_obj_detector_th = threading.Thread(target=self.run)
@@ -94,7 +110,6 @@ class ControlTask:
          self.updateBtPeriodicMsg()
          self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
          time.sleep(0.5)
-
 
    def runRobot(self):
       print("running")
@@ -235,7 +250,9 @@ class ControlTask:
       self.btPeriodicMsg["battery_level"] = 30.0
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
-      self.btPeriodicMsg["robot_status"] = "collecting_balls"
+      for ball in self.balls:
+         self.btPeriodicMsg["balls_coordinates"].append([ball[0], ball[1]])
+      self.btPeriodicMsg["robot_status"] = self.status
 
    def ballDetectorTh(self):
       # mean = 0
@@ -252,10 +269,18 @@ class ControlTask:
             continue
 
          a_grey = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
-         # a_grey_up = a_grey[300:, :]
+         
+         # Add logic to detect Infrared
+         if(self.search_for_IR == True):
+            a_grey_up = a_grey[300:, :]
+            (a_t, threshInv) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+            if(time.time() - self.time_findIR > 5):
+               self.base_not_found = True
+               self.search_for_IR = False
+            
          a_grey = a_grey[300:, :]
          a_grey = cv2.normalize(a_grey, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-         # (a_t, threshInv) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+         
          a_blur = cv2.GaussianBlur(a_grey, (17, 17), 0)
          circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=13, maxRadius=46)
          # print(circles)
@@ -299,7 +324,64 @@ class ControlTask:
       time.sleep(10)
 
    def staticObjDetectorTh(self):
-      return
+      while True:
+         a = self.cam.capture_array("main")
+         b = self.cam1.capture_array("main")
+         
+         if a is None or b is None:
+            continue
+         
+         start = time.time()
+         a = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY)
+         a = a[390:-57, :]
+         b = cv2.cvtColor(b, cv2.COLOR_RGB2GRAY)
+         b = b[447:, :]
+         
+         disp = self.stereo.compute(a, b)
+         
+         # Scaling down the disparity values and normalizing them 
+         disp = (disp/16.0 - 5)/144
+         disp = disp[:, 150:-150]
+         (a_t, disp) = cv2.threshold(disp, 0.75, 0.99, cv2.THRESH_TOZERO)
+         kernel = np.ones((11, 11), np.uint8)
+         disp = cv2.erode(disp, kernel, iterations=1) 
+         kernel = np.ones((3, 3), np.uint8)
+         disp = cv2.erode(disp, kernel, iterations=1) 
+         kernel = np.ones((19, 19), np.uint8) 
+         disp = cv2.dilate(disp, kernel, iterations=1)
+         # time.sleep(0.01)
+         # disp = cv2.GaussianBlur(disp, (9, 9), 0)
+         # disp = [d for d in disp if d > 0.65]
+         disp_l = disp[:, :-330]
+         disp_r = disp[:, 330:]
+         sum_r = 0
+         sum_l = 0
+         for i in range(0, 90):
+            for j in range(0, 330):
+                  sum_r += disp_r[i][j]
+                  sum_l += disp_l[i][j]
+         
+         # print("Sum left: ", sum_l)
+         # print("Sum right: ", sum_r)
+         if((sum_r + sum_l) > 300):
+            if(sum_r > sum_l):
+                  print("Object in right")
+                  self.object_in_right = True
+                  self.object_in_left = False
+                  self.static_object_detected = True
+            elif(sum_r < sum_l):
+                  print("Object in left")
+                  self.object_in_left = True
+                  self.object_in_right = False
+                  self.static_object_detected = True
+         else:
+            print("No obj Found")
+            self.object_in_right = False
+            self.object_in_left = False
+            self.static_object_detected = False
+            
+         # time.sleep(0.01)
+         print("Time: ", time.time() - start)
 
    def fsmInit(self):
       self.charge_complete = False
@@ -322,21 +404,54 @@ class ControlTask:
       self.is_parallel_wall = False
       self.base_found_camera = False
       self.base_not_found = False
-      self.message_sent = False
       self.base_connected = False
       self.front_ir_detected_but_not_end = False
       self.robot_running_encoder = False
       self.robot_running_imu = False
       self.resume_command_rcvd = False
       self.pause_command_rcvd = False
-
+      self.balls_colected = self.peripherals.getCollectedBallsQty()
+      self.encoder_left_last = self.peripherals.getLeftEncoderSteps()
+      self.encoder_right_last = self.peripherals.getRightEncoderSteps()
+      self.object_in_right = False
+      self.object_in_left = False
+      
       self.actual_state = State.INIT
       self.next_state = State.INIT
       self.last_state = State.INIT
 
    def fsmRun(self):
       # Update booleans
-
+      self.charge_complete = False           # Needs ADS
+      self.opperation_complete = False       # How to define a complete operation??
+      self.close_from_base = False           # Needs IR detection
+      self.charger_connected = False         # Needs ADS
+      self.battery_low = False               # Needs ADS     
+      self.in_operation = False              # IDK
+      self.start_command_rcvd = False        # IDK
+      self.start_schedule = False            # IDK
+      self.has_balls = self.peripherals.getCollectedBallsQty() > 0
+      self.ball_detected = len(self.balls) > 0
+      # self.static_object_detected = False
+      self.close_wall = self.peripherals.getFrontDistance() < 20
+      self.stop_command_rcvd = False         # IDK
+      self.load_full = self.peripherals.getCollectedBallsQty() > 10
+      self.end_schedule = False              # IDK
+      self.ball_caught = (self.peripherals.getCollectedBallsQty() - self.balls_colected) > 0
+      self.static_object_avoided = not self.static_object_detected
+      self.is_parallel_wall = False          # Needs ultrassonic logic
+      self.base_found_camera = False         # Needs IR detection
+      # self.base_not_found = False
+      self.base_connected = False            # IDK
+      self.front_ir_detected_but_not_end = self.peripherals.isBallStuck()
+      self.robot_running_encoder = (self.peripherals.getLeftEncoderSteps() - self.encoder_left_last) != 0 and (self.peripherals.getRightEncoderSteps() - self.encoder_right_last) != 0
+      self.robot_running_imu = False         # Needs IMU
+      self.resume_command_rcvd = False       # IDK
+      self.pause_command_rcvd = False        # IDK
+      self.balls_colected = self.peripherals.getCollectedBallsQty()
+      self.encoder_left_last = self.peripherals.getLeftEncoderSteps()
+      self.encoder_right_last = self.peripherals.getRightEncoderSteps()
+      
       # Run FSM
       if(self.next_state == State.INIT):
          self.init()
@@ -374,6 +489,10 @@ class ControlTask:
          self.ballStuck()
       elif(self.next_state == State.WAITING_USER):
          self.waitForUser()
+      elif(self.next_state == State.BASE_NOT_FOUND):
+         self.baseNotFound()
+
+      time.sleep(0.05)
 
    def init(self):
       # Entry
@@ -395,7 +514,8 @@ class ControlTask:
       # Entry
       if(self.actual_state != State.SEARCHING_BASE_WALL):
          self.actual_state = self.next_state
-      
+         self.status = "returning_to_base"
+         
       # Do
       self.moveParallelWall()
       self.findIR()
@@ -410,6 +530,7 @@ class ControlTask:
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
+         self.status = ""
    
    def findingWall(self):
       # Entry
@@ -439,26 +560,32 @@ class ControlTask:
       if(self.base_connected == True):
          self.next_state = State.CONNECTED_TO_BASE
          self.last_state = self.actual_state
+         self.status = ""
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
-
+         self.status = ""
+   
+   ## REVIEW THIS BEFORE CONTINUE
+   # Increase one state, moving to base
    def searchingBaseUsingCamera(self):
-      ## REVIEW THIS BEFORE CONTINUE
       # Entry
       if(self.actual_state != State.SEARCHING_BASE_CAM):
          self.actual_state = self.next_state
+         self.status = "returning_to_base"
       
       # Do
       self.findIR()
 
       # Exit
       if(self.base_not_found == True):
-         self.next_state = State.SEARCHING_BASE_WALL
+         self.base_not_found = False
+         self.next_state = State.BASE_NOT_FOUND
          self.last_state = self.actual_state
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
+         self.status = ""
 
    def connectedToBase(self):
       # Entry
@@ -538,6 +665,7 @@ class ControlTask:
       # Entry
       if(self.actual_state != State.SEARCHING_BALLS):
          self.actual_state = self.next_state
+         self.status = "searching_for_balls"
       
       # Do
       self.moveInPattern()
@@ -546,21 +674,27 @@ class ControlTask:
       if(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
-      elif(self.close_wall == True):
-         self.next_state = State.AVOIDING_WALL
-         self.last_state = self.actual_state
-      elif(self.static_object_detected == True):
-         self.next_state = State.AVOIDING_STATIC_OBJECT
-         self.last_state = self.actual_state
+         self.status = ""
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
+         self.status = ""
+      elif(self.close_wall == True):
+         self.next_state = State.AVOIDING_WALL
+         self.last_state = self.actual_state
+         self.status = ""
+      elif(self.static_object_detected == True):
+         self.next_state = State.AVOIDING_STATIC_OBJECT
+         self.last_state = self.actual_state
+         self.status = ""
       elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
          self.next_state = State.SEARCHING_BASE_CAM
          self.last_state = self.actual_state
+         self.status = ""
       elif(self.ball_detected == True):
          self.next_state = State.CATCHING_BALL
          self.last_state = self.actual_state
+         self.status = ""
       
    def avoidingWall(self):
       # Entry
@@ -605,6 +739,7 @@ class ControlTask:
       if(self.actual_state != State.AVOIDING_STATIC_OBJECT):
          self.stopMotors()
          self.actual_state = self.next_state
+         self.status = "paused"
       
       # Do
       
@@ -612,11 +747,13 @@ class ControlTask:
       if(self.static_object_avoided == True):
          self.next_state = self.last_state
          self.last_state = self.actual_state
+         self.status = ""
    
    def catchingBall(self):
       if(self.actual_state != State.CATCHING_BALL):
          self.reduceSpeed()
          self.increaseVacuumPower()
+         self.status = "collecting_balls"
          self.actual_state = self.next_state
       
       # Do
@@ -626,18 +763,22 @@ class ControlTask:
       if(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
+         self.status = ""
       elif(self.ball_caught == True):
          self.increaseSpeed()
          self.reduceVacuumPower()
          self.next_state = State.SEARCHING_BALLS
          self.last_state = self.actual_state
-      elif(self.front_ir_detected_but_not_end == True):
-         self.next_state = State.BALL_STUCK
-         self.last_state = self.actual_state
+         self.status = ""
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
-
+         self.status = ""
+      elif(self.front_ir_detected_but_not_end == True):
+         self.next_state = State.BALL_STUCK
+         self.last_state = self.actual_state
+         self.status = ""
+      
    def ballStuck(self):
       if(self.actual_state != State.BALL_STUCK):
          self.stopMotors()
@@ -645,11 +786,12 @@ class ControlTask:
          self.actual_state = self.next_state
       
       # Do
-      self.sendWarningUser()
+      self.sendWarningUser("ball_stuck")
 
       # Exit
       if(self.front_ir_detected_but_not_end == True):
          self.next_state = State.SEARCHING_BALLS
+         self.sendWarningUser("")
          self.last_state = self.actual_state
       elif(time.time() - start_time > 3):
          self.next_state = State.WAITING_USER
@@ -665,12 +807,37 @@ class ControlTask:
       # Exit
    
    def robotStuck(self):
-      print("Not implemented")
-      return
+      if(self.actual_state != State.BALL_STUCK):
+         self.stopMotors()
+         start_time = time.time()
+         self.actual_state = self.next_state
+      
+      # Do
+      self.sendWarningUser("robot_stuck")
+
+      # Exit
+      if(self.robot_running_imu == True and self.robot_running_encoder == True):
+         self.next_state = self.last_state
+         self.sendWarningUser("")
+         self.last_state = self.actual_state
+      elif(time.time() - start_time > 3):
+         self.next_state = State.WAITING_USER
+         self.last_state = self.actual_state
 
    def baseNotFound(self):
-      print("Not implemented")
-      return
+      # Entry
+      if(self.actual_state != State.BASE_NOT_FOUND):
+         start_time = time.time()
+         self.actual_state = self.next_state
+      
+      # Do
+      self.sendWarningUser("base_not_found")
+
+      # Exit
+      if(time.time() - start_time >= 1):
+         self.sendWarningUser("")
+         self.next_state = State.SEARCHING_BASE_WALL
+         self.last_state = self.actual_state
 
    def findWall(self):
       print("Not implemented")
@@ -685,49 +852,39 @@ class ControlTask:
       return
    
    def findIR(self):
-      print("Not implemented")
-      return
+      if(self.search_for_IR == False):
+         self.search_for_IR = True
+         self.time_findIR = time.time()
    
    def calibrateSensors(self):
-      print("Not implemented")
-      return
+      self.last_position = [0, 0, 0]
+      self.peripherals.resetPeripherals()
    
    def enablePeripherals(self):
-      print("Not implemented")
-      return
+      self.peripherals.start()
 
    def disablePeripherals(self):
-      print("Not implemented")
-      return
+      self.peripherals.close()
    
    def moveInPattern(self):
       print("Not implemented")
       return
 
-   def reduceSpeed(self):
-      print("Not implemented")
-      return
-
+   # Improve this
    def moveAroundObject(self):
-      print("Not implemented")
-      return
-   
-   def increaseSpeed(self):
-      print("Not implemented")
-      return
+      if(self.object_in_left == True):
+         self.is_rotating = True
+         self.peripherals.rotate(1, 0.1, 0.5)
+      elif(self.object_in_right == True):
+         self.is_rotating = True
+         self.peripherals.rotate(0, 0.1, 0.5)
+      self.is_rotating = False
    
    def stopMotors(self):
-      print("Not implemented")
-      return
+      self.peripherals.setVacuumMotorPWM(0)
+      self.peripherals.driveRobotForward(0, 0, 0)
    
-   def increaseVacuumPower(self):
-      print("Not implemented")
-      return
-
-   def reduceVacuumPower(self):
-      print("Not implemented")
-      return
-   
+   # Improve
    def approachBall(self):
       if(len(self.balls) == 0):
          return
@@ -767,11 +924,9 @@ class ControlTask:
       self.peripherals.setVacuumMotorPWM(0.0)
 
       return
-         
-   
-   def sendWarningUser(self):
-      print("Not implemented")
-      return
+
+   def sendWarningUser(self, error:str):
+      self.btPeriodicMsg["robot_error"] = error
 
    def convert(self, dist, theta):
       x = dist*math.sin(theta)
@@ -809,10 +964,10 @@ class ControlTask:
       # self.global_map.sort(key=closest)
       
    def updateMap(self, delta_x, delta_y, delta_theta):
-      mat = [[math.cos(delta_theta), -math.sin(delta_theta)], [math.sin(delta_theta), math.cos(delta_theta)]]
+      mat = [[math.cos(-delta_theta), -math.sin(-delta_theta)], [math.sin(-delta_theta), math.cos(-delta_theta)]]
       for ball in self.balls:
-         # ball[0] = ball[0]*mat[0][0] + ball[1]*mat[1][0]
-         # ball[1] = ball[0]*mat[0][1] + ball[1]*mat[1][1]
+         ball[0] = ball[0]*mat[0][0] + ball[1]*mat[0][1]
+         ball[1] = ball[0]*mat[1][0] + ball[1]*mat[1][1]
          ball[0] -= delta_x
          ball[1] -= delta_y
 

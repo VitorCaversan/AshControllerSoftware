@@ -31,6 +31,22 @@ MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / WHEEL_CIRCUMFERENCE_IN_M
 # controlling motors, etc.
 class Peripherals:
    def __init__(self):
+      self.start()
+
+   def close(self):
+      self.leftMotor.stop()
+      self.rightMotor.stop()
+      self.vacuumMotor.off()
+      self.encoderLeft.close()
+      self.encoderRight.close()
+      self.leftDistSens.close()
+      self.frontDistSens.close()
+      self.rightDistSens.close()
+      self.backDistSens.close()
+      # self.servo.detach()
+      self.tubeSensMngr.close()
+
+   def start(self):
       self.vacuumMotor      = PWMOutputDevice(pin=12, frequency=1000)
       self.leftMotor        = Motor(26, 19)
       self.rightMotor       = Motor(21, 20)
@@ -57,20 +73,7 @@ class Peripherals:
       self.lastRightMotorSteps: int = 0
       self.lastStepsReadTime: float = 0
       self.robotDirection = Direction.FORWARD # 1 for forward, 0 for backward
-
-   def close(self):
-      self.leftMotor.stop()
-      self.rightMotor.stop()
-      self.vacuumMotor.off()
-      self.encoderLeft.close()
-      self.encoderRight.close()
-      # self.leftDistSens.close()
-      self.frontDistSens.close()
-      # self.rightDistSens.close()
-      # self.backDistSens.close()
-      # self.servo.detach()
-      self.tubeSensMngr.close()
-
+   
    def safeExit(self, signum, frame):
       self.leftMotor.stop()
       self.rightMotor.stop()
@@ -88,22 +91,29 @@ class Peripherals:
 
    def getLeftMotorTargetStepsPerS(self) -> float:
       return self.leftMotorTargetStepsPerS
+   
    def getRightMotorTargetStepsPerS(self) -> float:
       return self.rightMotorTargetStepsPerS
    
    def getLeftDistance(self) -> float:
       return self.leftDistSens.distance * 100.0
+   
    def getFrontDistance(self) -> float:
       return self.frontDistSens.distance * 100.0
+   
    def getRightDistance(self) -> float:
       return self.rightDistSens.distance * 100.0
+   
    def getBackDistance(self) -> float:
       return self.backDistSens.distance * 100.0
 
    def setVacuumMotorPWM(self, pwm: float):
-      if (pwm >= 0) and (pwm <= 1):
+      if (pwm > 0) and (pwm <= 1):
+         self.vacuumMotor.on()
          self.vacuumMotor.blink(on_time=(0.01*pwm), off_time=(0.01*(1-pwm)))
-
+      elif (pwm == 0):
+         self.vacuumMotor.off()
+         
    # Changes the motors PWM according to the read encoder values and the target values
    def controlMotorsPWM(self):
       currTime = time.time()
@@ -278,6 +288,7 @@ class Peripherals:
    
    def getCollectedBallsQty(self) -> int:
       return self.tubeSensMngr.ballCount
+   
    def isBallStuck(self) -> bool:
       return self.tubeSensMngr.isBallStuck()
    
@@ -286,3 +297,8 @@ class Peripherals:
    
    def getOdometry(self):
       return self.robotOdom.getLocation()
+   
+   def resetPeripherals(self):
+      self.tubeSensMngr.reset()
+      self.resetEncoders()
+      self.robotOdom.resetLocation()

@@ -61,3 +61,12 @@ class EncoderSensorMnger:
         # Y: coordinate in the Y axis related to the base coordinate system
         # Z: angle in radian of the robot
         return (self.position_x, self.position_y, self.rotation_z)
+    
+    def resetLocation(self):
+        self.leftLastEncoder = 0.0
+        self.RightLastEncoder = 0.0
+        self.lastLeftMotorSteps = 0.0
+        self.lastRightMotorSteps = 0.0
+        self.position_x = 0.0
+        self.position_y = 0.0
+        self.rotation_z = 0.0
