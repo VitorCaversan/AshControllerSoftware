@@ -115,6 +115,7 @@ class Peripherals:
          self.vacuumMotor.off()
          
    # Changes the motors PWM according to the read encoder values and the target values
+   
    def controlMotorsPWM(self):
       currTime = time.time()
       timeDiff = currTime - self.lastStepsReadTime
@@ -134,37 +135,37 @@ class Peripherals:
       else:
          self.rightMotor.stop()
 
-      if timeDiff < 1:
+      if timeDiff < 0.1:
          return
 
-      self.lastStepsReadTime = currTime
+      # self.lastStepsReadTime = currTime
 
-      leftMotorStepsDiff  = abs(self.encoderLeft.steps - self.lastLeftMotorSteps)
-      rightMotorStepsDiff = abs(self.encoderRight.steps - self.lastRightMotorSteps)
+      # leftMotorStepsDiff  = abs(self.encoderLeft.steps - self.lastLeftMotorSteps)
+      # rightMotorStepsDiff = abs(self.encoderRight.steps - self.lastRightMotorSteps)
 
-      self.lastLeftMotorSteps  = self.encoderLeft.steps
-      self.lastRightMotorSteps = self.encoderRight.steps
+      # self.lastLeftMotorSteps  = self.encoderLeft.steps
+      # self.lastRightMotorSteps = self.encoderRight.steps
 
-      leftMotorStepsPerS  = (leftMotorStepsDiff / timeDiff)
-      rightMotorStepsPerS = (rightMotorStepsDiff / timeDiff)
+      # leftMotorStepsPerS  = (leftMotorStepsDiff / timeDiff)
+      # rightMotorStepsPerS = (rightMotorStepsDiff / timeDiff)
 
-      leftMotorError  = self.leftMotorTargetStepsPerS - leftMotorStepsPerS
-      rightMotorError = self.rightMotorTargetStepsPerS - rightMotorStepsPerS
+      # leftMotorError  = self.leftMotorTargetStepsPerS - leftMotorStepsPerS
+      # rightMotorError = self.rightMotorTargetStepsPerS - rightMotorStepsPerS
 
-      leftMotorPWM  = self.currLeftMotorPWM  + (leftMotorError  * ROBOT_PWM_RAMP_RATE)
-      rightMotorPWM = self.currRightMotorPWM + (rightMotorError * ROBOT_PWM_RAMP_RATE)
+      # leftMotorPWM  = self.currLeftMotorPWM  + (leftMotorError  * ROBOT_PWM_RAMP_RATE)
+      # rightMotorPWM = self.currRightMotorPWM + (rightMotorError * ROBOT_PWM_RAMP_RATE)
 
-      if (leftMotorPWM < 0.0):
-         leftMotorPWM = 0.0
-      elif (leftMotorPWM > 1.0):
-         leftMotorPWM = 1.0
-      if (rightMotorPWM < 0.0):
-         rightMotorPWM = 0.0
-      elif (rightMotorPWM > 1.0):
-         rightMotorPWM = 1.0
+      # if (leftMotorPWM < 0.0):
+      #    leftMotorPWM = 0.0
+      # elif (leftMotorPWM > 1.0):
+      #    leftMotorPWM = 1.0
+      # if (rightMotorPWM < 0.0):
+      #    rightMotorPWM = 0.0
+      # elif (rightMotorPWM > 1.0):
+      #    rightMotorPWM = 1.0
 
-      self.currLeftMotorPWM  = leftMotorPWM
-      self.currRightMotorPWM = rightMotorPWM
+      # self.currLeftMotorPWM  = leftMotorPWM
+      # self.currRightMotorPWM = rightMotorPWM
 
 
    # Sets the target speed for the robot to move forward
@@ -196,7 +197,9 @@ class Peripherals:
       else: # curveLeftRate and curveRightRate are exclusive compared to each other
          self.leftMotorTargetStepsPerS  = 0
          self.rightMotorTargetStepsPerS = 0
-   
+      
+      self.currLeftMotorPWM  = speed
+      self.currRightMotorPWM = speed
       self.robotDirection = Direction.FORWARD
 
    # Sets the target speed for the robot to move backward
@@ -229,6 +232,8 @@ class Peripherals:
          self.leftMotorTargetStepsPerS  = 0
          self.rightMotorTargetStepsPerS = 0
 
+      self.currLeftMotorPWM  = speed
+      self.currRightMotorPWM = speed
       self.robotDirection = Direction.BACKWARD
 
    # Rotates the robot in its own axis, given an direction and an agle in radians
@@ -238,7 +243,7 @@ class Peripherals:
       initialSteps: int = 0
       encoderSteps = {0: self.encoderRight.steps, 1: self.encoderLeft.steps}
 
-      rebasedSpeed = (speed * (PWM_FOR_MAX_SPEED - PWM_FOR_MIN_SPEED)) + PWM_FOR_MIN_SPEED
+      rebasedSpeed = speed
 
       archSize = angle * ROBOT_RADIUS_FROM_CENTER_IN_M
       stepsToTurn = archSize * MOTOR_STEPS_PER_M

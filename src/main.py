@@ -19,7 +19,7 @@ def safeExit(self, signum, frame):
 
 def main():
    bluetoothTask.start()
-
+   taskScheduler.runRoutineNow()
    while True:
       try:
          signal(SIGTERM, safeExit)
@@ -28,9 +28,9 @@ def main():
          schedule.run_pending()
 
          tasks = bluetoothTask.getTasksCommand()
-
+         
          if tasks.mustStartNow():
-            taskScheduler.runRoutineNow()
+            
             bluetoothTask.rxBtMsg.resetMsg()
          elif tasks.haveTimeToStart():
             timeToStart = tasks.getTimeToStartTasks()

@@ -63,10 +63,10 @@ class ControlTask:
       self.is_rotating = False
       self.status = ""
       self.balls = []
-      self.cam = Picamera2(0)
-      self.cam1 = Picamera2(1)
+      self.cam = Picamera2(1)
+      self.cam1 = Picamera2(0)
       cfg = self.cam.create_preview_configuration(main={'size': (1920, 1080)})
-      cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
+      cfg1 = self.cam1.create_preview_configuration(main={'size': (1920, 1080)})
       self.cam.configure(cfg)
       self.cam1.configure(cfg1)
       # cam.set_controls({"FrameRate": 5})
@@ -87,6 +87,8 @@ class ControlTask:
       self.stereo.setDisp12MaxDiff(0)
       self.stereo.setMinDisparity(110)
       self.stereo.setPreFilterCap(5)
+
+      self.fsmInit()
       self.thread = threading.Thread(target=self.run)
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
       self.static_obj_detector_th = threading.Thread(target=self.run)
@@ -103,7 +105,7 @@ class ControlTask:
          self.last_position[0] = odom[0]*100
          self.last_position[1] = odom[1]*100
          self.last_position[2] = odom[2]
-         time.sleep(0.1)
+         time.sleep(0.05)
    
    def bluetoothSenderTh(self):
       while True:
@@ -128,43 +130,44 @@ class ControlTask:
       # self.peripherals.setVacuumMotorPWM(0.1)
       # time.sleep(0.5)
       # self.peripherals.setVacuumMotorPWM(0.3)
-      # print("Subindo rampa velocidade")
+      # # print("Subindo rampa velocidade")
       # self.peripherals.driveRobotForward(0.1, 0, 0)
       # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
+      # time.sleep(0.5)
       # self.peripherals.driveRobotForward(0.2, 0, 0)
       # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
-      # self.peripherals.driveRobotForward(0.4, 0, 0)
+      # time.sleep(0.5)
+      # self.peripherals.driveRobotForward(0.3, 0, 0)
       # # self.peripherals.controlMotorsPWM()
       # time.sleep(1)
-      # self.peripherals.driveRobotForward(0.5, 0, 0)
+      # # self.peripherals.driveRobotForward(0.5, 0, 0)
       # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
-      # print("parado")
-      # time.sleep(3)
+      # # time.sleep(1)
+      # # print("parado")
+      # # time.sleep(3)
       # self.peripherals.driveRobotForward(0.0, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # print("desliango aspirador")
-      # self.peripherals.setVacuumMotorPWM(0.1)
-      # time.sleep(0.5)
+      # # # self.peripherals.controlMotorsPWM()
+      # # print("desliango aspirador")
+      # # self.peripherals.setVacuumMotorPWM(0.1)
+      # # time.sleep(0.5)
       # self.peripherals.setVacuumMotorPWM(0.0)
-      # time.sleep(0.5)
-      # print("movendo para tras")
+      # # time.sleep(0.5)
+      # # print("movendo para tras")
       # self.peripherals.driveRobotBackward(0.1, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
+      # # # self.peripherals.controlMotorsPWM()
+      # time.sleep(0.5)
       # self.peripherals.driveRobotBackward(0.2, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
-      # self.peripherals.driveRobotBackward(0.4, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
+      # # # self.peripherals.controlMotorsPWM()
+      # time.sleep(0.5)
+      # self.peripherals.driveRobotBackward(0.3, 0, 0)
+      # # # self.peripherals.controlMotorsPWM()
+      # time.sleep(0.5)
+      # self.peripherals.driveRobotBackward(0.0, 0, 0)
       # self.peripherals.driveRobotBackward(0.5, 0, 0)
       # # self.peripherals.controlMotorsPWM()
       # time.sleep(1)
       # time.sleep(3)
-      # self.peripherals.driveRobotBackward(0.0, 0, 0)
+      
       # self.peripherals.controlMotorsPWM()
       # self.peripherals.rotate(0, 3.1415, 0.5)
       # self.peripherals.stopRobot()
@@ -172,7 +175,7 @@ class ControlTask:
       # self.peripherals.rotate(0, 1)
 
       self.approachBall()
-      print("FINALIZADO")
+      # print("FINALIZADO")
 
       # adsCtrlRate = 30.0 / 100.0
       # if adsCtrlRate < 0.0:
@@ -261,6 +264,7 @@ class ControlTask:
          a = self.cam.capture_array("main")
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
          a = cv2.resize(a, (960, 540))
+
          # a = cv2.rotate(a, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
@@ -298,7 +302,7 @@ class ControlTask:
                      horizontal_dist = 2*(i[0] - 480)/i[2]
                      theta = math.asin(horizontal_dist/dist_ball)
                      dist_center_ball = math.sqrt((dist_ball * dist_ball) + (3 * 3) - 2 * dist_ball * 3 * theta)
-                     theta_center = math.asin((horizontal_dist + 3)/dist_center_ball)
+                     theta_center = math.asin((horizontal_dist - 1)/dist_center_ball)
                      print("dist: ", i[2], " pixel")
                      print("dist: ", dist_ball, " cm")
                      print("hor dist: ", horizontal_dist, " cm")
@@ -327,6 +331,9 @@ class ControlTask:
       while True:
          a = self.cam.capture_array("main")
          b = self.cam1.capture_array("main")
+
+         a = cv2.resize(a, (960, 540))
+         b = cv2.resize(b, (960, 540))
          
          if a is None or b is None:
             continue
@@ -415,6 +422,7 @@ class ControlTask:
       self.encoder_right_last = self.peripherals.getRightEncoderSteps()
       self.object_in_right = False
       self.object_in_left = False
+      self.search_for_IR = False
       
       self.actual_state = State.INIT
       self.next_state = State.INIT
@@ -872,12 +880,14 @@ class ControlTask:
 
    # Improve this
    def moveAroundObject(self):
-      if(self.object_in_left == True):
-         self.is_rotating = True
-         self.peripherals.rotate(1, 0.1, 0.5)
-      elif(self.object_in_right == True):
-         self.is_rotating = True
-         self.peripherals.rotate(0, 0.1, 0.5)
+      while(self.static_object_detected):
+         if(self.object_in_left == True):
+            self.is_rotating = True
+            self.peripherals.rotate(1, 0.01, 0.2)
+         elif(self.object_in_right == True):
+            self.is_rotating = True
+            self.peripherals.rotate(0, 0.01, 0.2)
+      time.sleep(0.05)
       self.is_rotating = False
    
    def stopMotors(self):
@@ -890,16 +900,16 @@ class ControlTask:
          return
       ball = self.balls[0]
 
-      # self.is_rotating = True
-      # time.sleep(1)
-      # while(ball[0] > 2 or ball[0] < -2):
-      #    angle = math.atan(ball[0]/ball[1])
-      #    if(ball[0] < 0):
-      #       self.peripherals.rotate(0, 0.1, 1)
-      #    else:
-      #       self.peripherals.rotate(1, 0.1, 1)
-      #    time.sleep(0.01)
-      # self.is_rotating = False
+      self.is_rotating = True
+      time.sleep(1)
+      while(ball[0] > 1 or ball[0] < -1):
+         angle = math.atan(ball[0]/ball[1])
+         if(ball[0] > 0):
+            self.peripherals.rotate(0, 0.01, 0.17)
+         else:
+            self.peripherals.rotate(1, 0.01, 0.17)
+         time.sleep(0.05)
+      self.is_rotating = False
       self.peripherals.driveRobotForward(0.1, 0, 0)
       time.sleep(0.3)
       self.peripherals.driveRobotForward(0.2, 0, 0)
@@ -910,17 +920,25 @@ class ControlTask:
          self.peripherals.driveRobotForward(0.5, 0, 0)
          time.sleep(0.01)
       
-      self.peripherals.driveRobotForward(0.1, 0, 0)
+      self.peripherals.driveRobotForward(0.0, 0, 0)
       self.peripherals.setVacuumMotorPWM(0.1)
       time.sleep(0.5)
       self.peripherals.setVacuumMotorPWM(0.3)
       time.sleep(1)
 
-      while(ball[1] > 8):
+      self.peripherals.driveRobotForward(0.1, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.2, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.3, 0, 0)
+
+      while(ball[1] > -2):
          self.peripherals.driveRobotForward(0.3, 0, 0)
+         self.peripherals.setVacuumMotorPWM(0.3)
          time.sleep(0.01)
-         
+      
       self.peripherals.driveRobotForward(0.0, 0, 0)
+      time.sleep(0.5)
       self.peripherals.setVacuumMotorPWM(0.0)
 
       return
@@ -964,7 +982,7 @@ class ControlTask:
       # self.global_map.sort(key=closest)
       
    def updateMap(self, delta_x, delta_y, delta_theta):
-      mat = [[math.cos(-delta_theta), -math.sin(-delta_theta)], [math.sin(-delta_theta), math.cos(-delta_theta)]]
+      mat = [[math.cos(delta_theta), -math.sin(delta_theta)], [math.sin(delta_theta), math.cos(delta_theta)]]
       for ball in self.balls:
          ball[0] = ball[0]*mat[0][0] + ball[1]*mat[0][1]
          ball[1] = ball[0]*mat[1][0] + ball[1]*mat[1][1]
