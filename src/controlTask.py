@@ -91,7 +91,7 @@ class ControlTask:
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
       self.static_obj_detector_th = threading.Thread(target=self.run)
       self.odometry_thread = threading.Thread(target=self.runOdometry)
-      self.bluetooth_thread = threading.Thread(target=self.bluetoothSenderTh)
+      self.bluetooth_thread = threading.Thread(target=self.bluetoothHandlerTh)
 
    def runOdometry(self):
       while(True):
@@ -105,10 +105,27 @@ class ControlTask:
          self.last_position[2] = odom[2]
          time.sleep(0.1)
    
-   def bluetoothSenderTh(self):
+   # Handles received bluetooth messages and sends periodic messages
+   def bluetoothHandlerTh(self):
       while True:
          self.updateBtPeriodicMsg()
          self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
+
+         try:
+            msg = self.ctrlMsgQueue.get(timeout=0.5)
+
+            if msg != "":
+               if msg == "pause":
+                  self.stop_command_rcvd = True
+               elif msg == "resume":
+                  self.resume_command_rcvd = True
+               elif msg == "return_to_base":
+                  self.stop_command_rcvd = True
+
+               self.ctrlMsgQueue.task_done()
+         except:
+            pass
+         
          time.sleep(0.5)
 
    def runRobot(self):
