@@ -116,7 +116,7 @@ class ControlTask:
 
             if msg != "":
                if msg == "pause":
-                  self.stop_command_rcvd = True
+                  self.pause_command_rcvd = True
                elif msg == "resume":
                   self.resume_command_rcvd = True
                elif msg == "return_to_base":
