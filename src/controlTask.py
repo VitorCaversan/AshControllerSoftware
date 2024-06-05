@@ -65,8 +65,8 @@ class ControlTask:
       self.balls = []
       self.cam = Picamera2(1)
       self.cam1 = Picamera2(0)
-      cfg = self.cam.create_preview_configuration(main={'size': (1920, 1080)})
-      cfg1 = self.cam1.create_preview_configuration(main={'size': (1920, 1080)})
+      cfg = self.cam.create_preview_configuration(main={'size': (960, 540)})
+      cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
       self.cam.configure(cfg)
       self.cam1.configure(cfg1)
       # cam.set_controls({"FrameRate": 5})
@@ -91,7 +91,7 @@ class ControlTask:
       self.fsmInit()
       self.thread = threading.Thread(target=self.run)
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
-      self.static_obj_detector_th = threading.Thread(target=self.run)
+      self.static_obj_detector_th = threading.Thread(target=self.staticObjDetectorTh)
       self.odometry_thread = threading.Thread(target=self.runOdometry)
       self.bluetooth_thread = threading.Thread(target=self.bluetoothSenderTh)
 
@@ -174,7 +174,10 @@ class ControlTask:
       # print("Batt ", self.peripherals.getLowerBatteryLvl())
       # self.peripherals.rotate(0, 1)
 
-      self.approachBall()
+      # self.approachBall()
+      while(True):
+         self.moveAroundObject()
+         time.sleep(0.1)
       # print("FINALIZADO")
 
       # adsCtrlRate = 30.0 / 100.0
@@ -230,6 +233,7 @@ class ControlTask:
       self.odometry_thread.start()
       self.bluetooth_thread.start()
       self.ball_detector_th.start()
+      self.static_obj_detector_th.start()
    
    def stop(self):
       self.peripherals.close()
@@ -237,12 +241,14 @@ class ControlTask:
       self.odometry_thread.join()
       self.ball_detector_th.join()
       self.bluetooth_thread.join()
+      self.static_obj_detector_th.join()
 
    def safeExit(self, signum, frame):
       self.peripherals.close()
       self.odometry_thread.join()
       self.ball_detector_th.join()
       self.bluetooth_thread.join()
+      self.static_obj_detector_th.join()
       exit(1)
    
    def updateBtPeriodicMsg(self):
@@ -263,7 +269,7 @@ class ControlTask:
       while True:
          a = self.cam.capture_array("main")
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
-         a = cv2.resize(a, (960, 540))
+         # a = cv2.resize(a, (960, 540))
 
          # a = cv2.rotate(a, cv2.ROTATE_180)
          
@@ -332,12 +338,12 @@ class ControlTask:
          a = self.cam.capture_array("main")
          b = self.cam1.capture_array("main")
 
-         a = cv2.resize(a, (960, 540))
-         b = cv2.resize(b, (960, 540))
+         # a = cv2.resize(a, (960, 540))
+         # b = cv2.resize(b, (960, 540))
          
          if a is None or b is None:
             continue
-         
+         print('AAAA')
          start = time.time()
          a = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY)
          a = a[390:-57, :]
@@ -883,11 +889,11 @@ class ControlTask:
       while(self.static_object_detected):
          if(self.object_in_left == True):
             self.is_rotating = True
-            self.peripherals.rotate(1, 0.01, 0.2)
+            self.peripherals.rotate(0, 0.03, 0.3)
          elif(self.object_in_right == True):
             self.is_rotating = True
-            self.peripherals.rotate(0, 0.01, 0.2)
-      time.sleep(0.05)
+            self.peripherals.rotate(1, 0.03, 0.3)
+      # time.sleep(1)
       self.is_rotating = False
    
    def stopMotors(self):
