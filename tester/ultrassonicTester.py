@@ -3,7 +3,7 @@ import time
 
 
 leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-# frontDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
+frontDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
 rightDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
 backDistSens    = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
 
@@ -13,8 +13,8 @@ def getLeftDistance() -> float:
    return leftDistSens.distance * 100.0
 
 def getFrontDistance() -> float:
-#    return frontDistSens.distance * 100.0
-    return 0
+   return frontDistSens.distance * 100.0
+    # return 0
 
 def getRightDistance() -> float:
    return rightDistSens.distance * 100.0
@@ -37,6 +37,6 @@ while(i<100):
 
 
 leftDistSens.close()
-# frontDistSens.close()
+frontDistSens.close()
 rightDistSens.close()
 backDistSens.close()

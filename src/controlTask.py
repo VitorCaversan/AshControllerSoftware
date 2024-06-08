@@ -176,7 +176,9 @@ class ControlTask:
 
       # self.approachBall()
       while(True):
-         self.followWalls()
+         print(self.peripherals.getFrontDistance())
+         if(self.peripherals.getFrontDistance() < 20):
+            self.moveAroundObject()
          time.sleep(0.1)
       # print("FINALIZADO")
 
@@ -232,8 +234,8 @@ class ControlTask:
       self.thread.start()
       self.odometry_thread.start()
       self.bluetooth_thread.start()
-      self.ball_detector_th.start()
-      self.static_obj_detector_th.start()
+      # self.ball_detector_th.start()
+      # self.static_obj_detector_th.start()
    
    def stop(self):
       self.peripherals.close()
@@ -241,7 +243,7 @@ class ControlTask:
       self.odometry_thread.join()
       self.ball_detector_th.join()
       self.bluetooth_thread.join()
-      self.static_obj_detector_th.join()
+      # self.static_obj_detector_th.join()
 
    def safeExit(self, signum, frame):
       self.peripherals.close()
@@ -469,7 +471,6 @@ class ControlTask:
       self.load_full = self.peripherals.getCollectedBallsQty() > 10
       self.end_schedule = False              # IDK
       self.ball_caught = (self.peripherals.getCollectedBallsQty() - self.balls_colected) > 0
-      self.static_object_avoided = not self.static_object_detected
       self.is_parallel_wall = False          # Needs ultrassonic logic
       self.base_found_camera = False         # Needs IR detection
       # self.base_not_found = False
@@ -767,7 +768,7 @@ class ControlTask:
          self.last_state = self.actual_state
    
    def robotPaused(self):
-      if(self.actual_state != State.AVOIDING_STATIC_OBJECT):
+      if(self.actual_state != State.PAUSED):
          self.stopMotors()
          self.actual_state = self.next_state
          self.status = "paused"
@@ -775,7 +776,7 @@ class ControlTask:
       # Do
       
       # Exit
-      if(self.static_object_avoided == True):
+      if(self.resume_command_rcvd == True):
          self.next_state = self.last_state
          self.last_state = self.actual_state
          self.status = ""
@@ -903,15 +904,26 @@ class ControlTask:
 
    # Improve this
    def moveAroundObject(self):
-      while(self.static_object_detected):
-         if(self.object_in_left == True):
-            self.is_rotating = True
-            self.peripherals.rotate(0, 0.03, 0.3)
-         elif(self.object_in_right == True):
-            self.is_rotating = True
-            self.peripherals.rotate(1, 0.03, 0.3)
+      self.static_object_avoided = False
+      while(self.peripherals.getFrontDistance() < 15):
+         self.peripherals.driveRobotBackward(0.2, 0, 0)
+      self.is_rotating = True
+      last_dist = 0
+      self.peripherals.driveRobotBackward(0.0, 0, 0)
+      while(self.peripherals.getFrontDistance() < 20):
+         self.peripherals.rotate(0,0.1,0.2)
+         last_dist = self.peripherals.getFrontDistance()
+      d2 = last_dist*math.sin(math.pi/12)
+      d3 = last_dist*math.cos(math.pi/12)
+      print(d2)
+      print(d3)
+      d4 = 12 - d2
+      if(d4 > 0):
+         theta = math.atan(d4/d3)
+         self.peripherals.rotate(0,theta*2,0.2)
       # time.sleep(1)
       self.is_rotating = False
+      self.static_object_avoided = True
    
    def stopMotors(self):
       self.peripherals.setVacuumMotorPWM(0)

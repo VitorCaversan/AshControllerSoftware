@@ -53,9 +53,9 @@ class Peripherals:
       self.encoderLeft      = RotaryEncoder(a=6, b=5, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
       self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-      self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
-      self.rightDistSens   = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
-      self.backDistSens    = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
+      self.frontDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
+      self.rightDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+      self.backDistSens    = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
       self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
       self.robotOdom        = EncoderSensorMnger()
       self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
