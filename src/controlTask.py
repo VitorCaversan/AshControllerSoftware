@@ -91,7 +91,7 @@ class ControlTask:
       self.fsmInit()
       self.thread = threading.Thread(target=self.run)
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
-      self.static_obj_detector_th = threading.Thread(target=self.staticObjDetectorTh)
+      #self.static_obj_detector_th = threading.Thread(target=self.staticObjDetectorTh)
       self.odometry_thread = threading.Thread(target=self.runOdometry)
       self.bluetooth_thread = threading.Thread(target=self.bluetoothSenderTh)
 
@@ -176,7 +176,7 @@ class ControlTask:
 
       # self.approachBall()
       while(True):
-         self.moveAroundObject()
+         self.followWalls()
          time.sleep(0.1)
       # print("FINALIZADO")
 
@@ -262,6 +262,23 @@ class ControlTask:
       for ball in self.balls:
          self.btPeriodicMsg["balls_coordinates"].append([ball[0], ball[1]])
       self.btPeriodicMsg["robot_status"] = self.status
+
+   def followWalls(self):
+      print(f'')
+
+      # Find the nearest wall in the robot
+      # print('HERE')
+      # dist = [self.peripherals.getFrontDistance(), self.peripherals.getLeftDistance(), self.peripherals.getRightDistance(), self.peripherals.getBackDistance()]
+      # index = min(dist)
+      # if dist.index(index) == 0:
+      #    print('mais perto eh a frente')
+      # elif index == 1:
+      #    print('mais perto eh a esquerda')
+      # elif index == 2:
+      #    print('mais perto eh a direita')
+      # elif index == 3:
+      #    print('mais perto eh a tras')
+      # pass
 
    def ballDetectorTh(self):
       # mean = 0
