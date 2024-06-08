@@ -963,7 +963,7 @@ class ControlTask:
    # Takes the robot position from odometry, calculates the angle of the base relative to the robot,
    # compares it with the angle of the robot and rotates the robot to align it with the base
    def rotateInDirectOfBase(self):
-      base_angle = math.atan2(self.last_position[Position.X], self.last_position[Position.Y])
+      base_angle = math.atan2(self.last_position[Position.Y], self.last_position[Position.X])
       base_angle_rel_to_robot = math.pi - base_angle
       robot_angle = self.last_position[Position.THETA]
 
