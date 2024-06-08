@@ -63,6 +63,7 @@ class ControlTask:
       self.is_rotating = False
       self.status = ""
       self.balls = []
+      self.baseIRPosition = [0, 0]
       self.cam = Picamera2(1)
       self.cam1 = Picamera2(0)
       cfg = self.cam.create_preview_configuration(main={'size': (960, 540)})
@@ -193,7 +194,7 @@ class ControlTask:
 
       # self.approachBall()
       while(True):
-         self.moveAroundObject()
+         self.searchingBaseUsingCamera()
          time.sleep(0.1)
       # print("FINALIZADO")
 
@@ -297,10 +298,22 @@ class ControlTask:
 
          a_grey = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
          
-         # Add logic to detect Infrared
+         # Creates a binary image for the infrared detection. Blurrs the image and finds the circles
+         # using the HoughCircles method from OpenCV
          if(self.search_for_IR == True):
-            a_grey_up = a_grey[300:, :]
-            (a_t, threshInv) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+            a_grey_up = a_grey[:300, :]
+            (a_t, ir_binary_img) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+
+            ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=13, maxRadius=46)
+
+            if ir_balls is not None:
+               ir_balls = np.uint16(np.around(ir_balls))
+               for ball in ir_balls[0, :]:
+                  print(f"IR ball detected at: {ball[0]}, {ball[1]}")
+                  if ir_binary_img[ball[1]][ball[0]] > 150:
+                     self.baseIRPosition = [ball[0] - 3, ball[1]]
+
             if(time.time() - self.time_findIR > 5):
                self.base_not_found = True
                self.search_for_IR = False
@@ -608,6 +621,17 @@ class ControlTask:
       # Do
       self.findIR()
 
+      if self.baseIRPosition[0] != 0:
+         self.rotateToCenterBase()
+
+      self.peripherals.driveRobotForward(0.2, 0, 0)
+
+      if (self.baseIRPosition[1] < 10):
+         self.peripherals.driveRobotForward(0.0, 0, 0)
+         self.next_state = State.CONNECTING_TO_BASE
+         self.last_state = self.actual_state
+         self.status = ""
+
       # Exit
       if(self.base_not_found == True):
          self.base_not_found = False
@@ -900,6 +924,13 @@ class ControlTask:
    def moveInPattern(self):
       print("Not implemented")
       return
+
+   # Rotates the robot according to the baseIRPosition found, to lign it up with the base
+   def rotateToCenterBase(self):
+      if (self.baseIRPosition[0] > 20):
+         self.peripherals.rotate(1, 0.07, 0.3)
+      elif (self.baseIRPosition[0] < -20):
+         self.peripherals.rotate(0, 0.07, 0.3)
 
    # Improve this
    def moveAroundObject(self):
