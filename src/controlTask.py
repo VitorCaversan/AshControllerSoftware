@@ -9,8 +9,10 @@ import cv2
 from picamera2 import Picamera2, Preview
 import numpy as np
 
-dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
+IR_CENTER_THRESHOLD_IN_CM = 20
+
+dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
 
 def closest(element):
@@ -36,6 +38,12 @@ class State(Enum):
    BALL_STUCK = 16,
    WAITING_USER = 17,
    BASE_NOT_FOUND = 18
+   GOING_AFTER_BASE_CAM = 19
+
+class Position(Enum):
+   X = 0,
+   Y = 1,
+   THETA = 2
 
 global_map = []
 
@@ -76,6 +84,7 @@ class ControlTask:
       self.cam.framerate = 10
       self.cam1.framerate = 10
       self.last_position = [0, 0, 0]
+      self.lastRotationDir = 0
 
       self.cam.start()
       self.cam1.start()
@@ -102,10 +111,10 @@ class ControlTask:
             self.peripherals.controlMotorsPWM()
          self.peripherals.updatePositionOdometry()
          odom = self.peripherals.getOdometry()
-         self.updateMap(odom[1]*100 - self.last_position[1], odom[0]*100 - self.last_position[0], odom[2] - self.last_position[2])
-         self.last_position[0] = odom[0]*100
-         self.last_position[1] = odom[1]*100
-         self.last_position[2] = odom[2]
+         self.updateMap(odom[Position.Y]*100 - self.last_position[Position.Y], odom[Position.X]*100 - self.last_position[Position.X], odom[Position.THETA] - self.last_position[Position.THETA])
+         self.last_position[Position.X] = odom[Position.X]*100
+         self.last_position[Position.Y] = odom[Position.Y]*100
+         self.last_position[Position.THETA] = odom[Position.THETA]
          time.sleep(0.05)
    
    # Handles received bluetooth messages and sends periodic messages
@@ -509,6 +518,8 @@ class ControlTask:
          self.findingWall()
       elif(self.next_state == State.SEARCHING_BASE_CAM):
          self.searchingBaseUsingCamera()
+      elif(self.next_state == State.GOING_AFTER_BASE_CAM):
+         self.goToBaseUsingCamera()
       elif(self.next_state == State.ROBOT_STUCK):
          self.robotStuck()
       elif(self.next_state == State.WAITING_FOR_CHARGER):
@@ -603,6 +614,7 @@ class ControlTask:
       # Exit
       if(self.base_connected == True):
          self.next_state = State.CONNECTED_TO_BASE
+         self.baseIRPosition = [0, 0]
          self.last_state = self.actual_state
          self.status = ""
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
@@ -610,7 +622,6 @@ class ControlTask:
          self.last_state = self.actual_state
          self.status = ""
    
-   ## REVIEW THIS BEFORE CONTINUE
    # Increase one state, moving to base
    def searchingBaseUsingCamera(self):
       # Entry
@@ -621,19 +632,42 @@ class ControlTask:
       # Do
       self.findIR()
 
-      if self.baseIRPosition[0] != 0:
+      if self.baseIRPosition[Position.X] == 0:
+         self.peripherals.rotate(self.lastRotationDir, 0.05, 0.3)
+
+      # Exit
+      if self.baseIRPosition[Position.X] != 0:
+         self.next_state = State.GOING_AFTER_BASE_CAM
+         self.last_state = self.actual_state
+      elif(self.base_not_found == True):
+         self.base_not_found = False
+         self.next_state = State.BASE_NOT_FOUND
+         self.last_state = self.actual_state
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+         self.status = ""
+
+   def goToBaseUsingCamera(self):
+      if(self.actual_state != State.GOING_AFTER_BASE_CAM):
+         self.actual_state = self.next_state
+         self.status = "returning_to_base"
+      
+      # Do
+      self.findIR()
+
+      if abs(self.baseIRPosition[Position.X]) < IR_CENTER_THRESHOLD_IN_CM:
          self.rotateToCenterBase()
 
-      self.peripherals.driveRobotForward(0.2, 0, 0)
+      self.peripherals.driveRobotForward(0.4, 0, 0)
 
-      if (self.baseIRPosition[1] < 10):
+      # Exit
+      if (self.baseIRPosition[Position.Y] < 10):
          self.peripherals.driveRobotForward(0.0, 0, 0)
          self.next_state = State.CONNECTING_TO_BASE
          self.last_state = self.actual_state
          self.status = ""
-
-      # Exit
-      if(self.base_not_found == True):
+      elif(self.base_not_found == True):
          self.base_not_found = False
          self.next_state = State.BASE_NOT_FOUND
          self.last_state = self.actual_state
@@ -745,6 +779,7 @@ class ControlTask:
       elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
          self.next_state = State.SEARCHING_BASE_CAM
          self.last_state = self.actual_state
+         self.rotateInDirectOfBase()
          self.status = ""
       elif(self.ball_detected == True):
          self.next_state = State.CATCHING_BALL
@@ -925,11 +960,31 @@ class ControlTask:
       print("Not implemented")
       return
 
+   # Takes the robot position from odometry, calculates the angle of the base relative to the robot,
+   # compares it with the angle of the robot and rotates the robot to align it with the base
+   def rotateInDirectOfBase(self):
+      base_angle = math.atan2(self.last_position[Position.X], self.last_position[Position.Y])
+      base_angle_rel_to_robot = math.pi - base_angle
+      robot_angle = self.last_position[Position.THETA]
+
+      if (robot_angle < 0):
+         robot_angle += 2*math.pi
+
+      delta_angle = robot_angle - base_angle_rel_to_robot
+
+      # Rotates a little bit less than needed
+      if delta_angle < 0:
+         self.lastRotationDir = 0
+         self.peripherals.rotate(self.lastRotationDir, ((-delta_angle) - 0.2), 0.3)
+      else:
+         self.lastRotationDir = 1
+         self.peripherals.rotate(self.lastRotationDir, (delta_angle - 0.2), 0.3)
+
    # Rotates the robot according to the baseIRPosition found, to lign it up with the base
    def rotateToCenterBase(self):
-      if (self.baseIRPosition[0] > 20):
+      if (self.baseIRPosition[Position.X] > IR_CENTER_THRESHOLD_IN_CM):
          self.peripherals.rotate(1, 0.07, 0.3)
-      elif (self.baseIRPosition[0] < -20):
+      elif (self.baseIRPosition[Position.X] < -IR_CENTER_THRESHOLD_IN_CM):
          self.peripherals.rotate(0, 0.07, 0.3)
 
    # Improve this
