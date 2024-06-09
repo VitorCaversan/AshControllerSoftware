@@ -106,7 +106,7 @@ while True:
                 addBall(x_ball, y_ball)
 
     # verifier()
-    print(balls)
+    # print(balls)
     # cv2.imshow("iR", threshInv) 
     # cv2.waitKey(1)
     # cv2.imshow("b", b_grey)

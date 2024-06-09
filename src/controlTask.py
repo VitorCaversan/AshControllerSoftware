@@ -215,11 +215,12 @@ class ControlTask:
 
       self.fsmInit()
 
-      self.actual_state = State.SEARCHING_BASE_CAM
-      self.next_state = State.SEARCHING_BASE_CAM
-      self.last_state = State.SEARCHING_BASE_CAM
+      self.actual_state = State.SEARCHING_BALLS
+      self.next_state = State.SEARCHING_BALLS
+      self.last_state = State.SEARCHING_BALLS
 
       while(True):
+         print(f"Actual state is: {self.actual_state}")
          self.fsmRun()
          time.sleep(0.01)
       # print("FINALIZADO")
@@ -318,7 +319,7 @@ class ControlTask:
          a = cv2.rotate(a, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
-\
+
          if a is None:
             continue
 
@@ -527,6 +528,8 @@ class ControlTask:
       self.balls_colected = self.peripherals.getCollectedBallsQty()
       self.encoder_left_last = self.peripherals.getLeftEncoderSteps()
       self.encoder_right_last = self.peripherals.getRightEncoderSteps()
+
+      print("Here")
       
       # Run FSM
       if(self.next_state == State.INIT):
@@ -1019,7 +1022,22 @@ class ControlTask:
       self.peripherals.close()
    
    def moveInPattern(self):
-      print("Not implemented")
+      # Diniz
+      print("Going forward")
+      self.peripherals.driveRobotForward(0.1, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.2, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.3, 0, 0)
+
+      if(self.peripherals.getFrontDistance() < 20):
+         print("Turning")
+         self.is_rotating = True
+         self.lastRotationDir = 1
+         self.peripherals.rotate(1, APPROX_PI / 2, 0.3)
+         self.is_rotating = False
+      
+      
       return
 
    # Takes the robot position from odometry, calculates the angle of the base relative to the robot,

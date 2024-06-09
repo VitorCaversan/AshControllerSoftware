@@ -51,7 +51,7 @@ class EncoderSensorMnger:
         self.position_y += delta_y
         self.rotation_z += delta_angle
 
-        print(f"Current position: {self.position_x} {self.position_y} {self.rotation_z}")
+        #print(f"Current position: {self.position_x} {self.position_y} {self.rotation_z}")
         
     def getLocation(self):
         # Return the position X, Y and the rotation in the 
