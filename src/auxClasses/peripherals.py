@@ -248,6 +248,9 @@ class Peripherals:
       archSize = angle * ROBOT_RADIUS_FROM_CENTER_IN_M
       stepsToTurn = archSize * MOTOR_STEPS_PER_M
 
+      self.stopRobot()
+      time.sleep(0.1)
+
       if (direction == 0):
          initialSteps = self.encoderRight.steps
          self.rightMotor.forward(speed=rebasedSpeed)
@@ -274,6 +277,10 @@ class Peripherals:
       return
    
    def stopRobot(self):
+      self.leftMotorTargetStepsPerS  = 0
+      self.rightMotorTargetStepsPerS = 0
+      self.currLeftMotorPWM  = 0
+      self.currRightMotorPWM = 0
       self.leftMotor.stop()
       self.rightMotor.stop()
 
