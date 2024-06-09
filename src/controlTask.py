@@ -64,8 +64,8 @@ class ControlTask:
       self.status = ""
       self.balls = []
       self.baseIRPosition = [0, 0]
-      self.cam = Picamera2(1)
-      self.cam1 = Picamera2(0)
+      self.cam = Picamera2(0)
+      self.cam1 = Picamera2(1)
       cfg = self.cam.create_preview_configuration(main={'size': (960, 540)})
       cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
       self.cam.configure(cfg)
@@ -171,16 +171,16 @@ class ControlTask:
       # self.peripherals.setVacuumMotorPWM(0.0)
       # # time.sleep(0.5)
       # # print("movendo para tras")
-      # self.peripherals.driveRobotBackward(0.1, 0, 0)
-      # # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotBackward(0.2, 0, 0)
-      # # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotBackward(0.3, 0, 0)
-      # # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotBackward(0.0, 0, 0)
+      self.peripherals.driveRobotBackward(0.1, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      time.sleep(0.5)
+      self.peripherals.driveRobotBackward(0.2, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      time.sleep(0.5)
+      self.peripherals.driveRobotBackward(0.3, 0, 0)
+      # # self.peripherals.controlMotorsPWM()
+      time.sleep(0.5)
+      self.peripherals.driveRobotBackward(0.0, 0, 0)
       # self.peripherals.driveRobotBackward(0.5, 0, 0)
       # # self.peripherals.controlMotorsPWM()
       # time.sleep(1)
@@ -195,7 +195,7 @@ class ControlTask:
       # self.approachBall()
       while(True):
          self.searchingBaseUsingCamera()
-         time.sleep(0.1)
+         time.sleep(0.01)
       # print("FINALIZADO")
 
       # adsCtrlRate = 30.0 / 100.0
@@ -289,10 +289,10 @@ class ControlTask:
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
          # a = cv2.resize(a, (960, 540))
 
-         # a = cv2.rotate(a, cv2.ROTATE_180)
+         a = cv2.rotate(a, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
-
+\
          if a is None:
             continue
 
@@ -303,7 +303,8 @@ class ControlTask:
          if(self.search_for_IR == True):
             a_grey_up = a_grey[:300, :]
             (a_t, ir_binary_img) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
-
+            cv2.imshow("iR", a_grey_up) 
+            cv2.waitKey(1)
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
             ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=13, maxRadius=46)
 
@@ -927,10 +928,12 @@ class ControlTask:
 
    # Rotates the robot according to the baseIRPosition found, to lign it up with the base
    def rotateToCenterBase(self):
+      self.is_rotating = True
       if (self.baseIRPosition[0] > 20):
          self.peripherals.rotate(1, 0.07, 0.3)
       elif (self.baseIRPosition[0] < -20):
          self.peripherals.rotate(0, 0.07, 0.3)
+      self.is_rotating = False
 
    # Improve this
    def moveAroundObject(self):
