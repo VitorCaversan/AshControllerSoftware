@@ -14,16 +14,21 @@ IR_CENTER_THRESHOLD_IN_PIXELS = 15
 
 WHEEL_DIAMETER_IN_M = 0.068
 APPROX_PI = 3.141592
+MAX_MOTOR_RMP = 100
+WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * WHEEL_DIAMETER_IN_M
+
+LEFT_DIST_QUEUE_SIZE = 5
+DIST_TOO_CLOSE_IN_CM = 30
+
 # Enum for forward and backward directions
 class Direction(Enum):
    BACKWARD = 0
    FORWARD = 1
 
-MAX_MOTOR_RMP = 100
-WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * WHEEL_DIAMETER_IN_M
 
 dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
+global_map = []
 
 def closest(element):
    return dist(0, 0, element[0], element[1])
@@ -49,13 +54,39 @@ class State(Enum):
    WAITING_USER = 17,
    BASE_NOT_FOUND = 18
    GOING_AFTER_BASE_CAM = 19
+   ROTATING_TILL_PARALLEL = 20
 
 class Position(Enum):
    X = 0,
    Y = 1,
    THETA = 2
 
-global_map = []
+class CyclicQueue:
+   def __init__(self, size: int):
+      self.size = size
+      self.queue = []
+      self.index = 0
+
+   def push(self, element: float):
+      if len(self.queue) < self.size:
+         self.queue.append(element)
+      else:
+         self.queue[self.index] = element
+         self.index += 1
+         self.index = self.index % self.size
+
+   def getLength(self):
+      return len(self.queue)
+   
+   def getAvg(self):
+      return sum(self.queue)/len(self.queue)
+
+   def getQueue(self):
+      return self.queue
+   
+   def reset(self):
+      self.queue = []
+      self.index = 0
 
 class ControlTask:
    def __init__(self, mainQueue: queue.Queue, ctrlQueue: queue.Queue):
@@ -97,6 +128,7 @@ class ControlTask:
       self.lastRotationDir = 0
       self.lastTimeFarFromBase = 0.0
       self.starting_err_time = 0.0
+      self.leftDistQueue = CyclicQueue(LEFT_DIST_QUEUE_SIZE)
 
       self.cam.start()
       self.cam1.start()
@@ -335,7 +367,7 @@ class ControlTask:
          a = cv2.rotate(a, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
-\
+
          if a is None:
             continue
 
@@ -466,6 +498,8 @@ class ControlTask:
                   self.object_in_left = True
                   self.object_in_right = False
                   self.static_object_detected = True
+         elif (self.peripherals.getFrontDistance() < 15):
+            self.static_object_detected = True
          else:
             print("No obj Found")
             self.object_in_right = False
@@ -526,12 +560,12 @@ class ControlTask:
       self.has_balls = self.peripherals.getCollectedBallsQty() > 0
       self.ball_detected = len(self.balls) > 0
       # self.static_object_detected = False
-      self.close_wall = self.peripherals.getFrontDistance() < 20
+      self.close_wall = self.peripherals.getFrontDistance() < DIST_TOO_CLOSE_IN_CM
       self.stop_command_rcvd = False         # IDK
       self.load_full = self.peripherals.getCollectedBallsQty() > 10
       self.end_schedule = False              # IDK
       self.ball_caught = (self.peripherals.getCollectedBallsQty() - self.balls_colected) > 0
-      self.is_parallel_wall = False          # Needs ultrassonic logic
+      self.is_parallel_wall = self.peripherals.getLeftDistance() < DIST_TOO_CLOSE_IN_CM
       self.base_found_camera = False         # Needs IR detection
       # self.base_not_found = False
       self.base_connected = False            # IDK
@@ -555,6 +589,8 @@ class ControlTask:
          self.connectingToBase()
       elif(self.next_state == State.FINDING_WALL):
          self.findingWall()
+      elif(self.next_state == State.ROTATING_TILL_PARALLEL):
+         self.rotateTillParallel()
       elif(self.next_state == State.SEARCHING_BASE_CAM):
          self.searchingBaseUsingCamera()
       elif(self.next_state == State.GOING_AFTER_BASE_CAM):
@@ -611,15 +647,19 @@ class ControlTask:
          self.status = "returning_to_base"
          
       # Do
+      self.leftDistQueue.push(self.peripherals.getLeftDistance())
       self.moveParallelWall()
       self.findIR()
       
       # Exit
-      if(self.close_from_base == True):
-         self.next_state = State.CONNECTING_TO_BASE
+      if(self.baseIRPosition[0] != 0):
+         self.next_state = State.GOING_AFTER_BASE_CAM
+         self.leftDistQueue.reset()
          self.last_state = self.actual_state
-      elif(self.close_wall == False):
-         self.next_state = State.FINDING_WALL
+      elif(self.close_wall == True):
+         self.lastRotationDir = 1
+         self.next_state      = State.ROTATING_TILL_PARALLEL
+         self.leftDistQueue.reset()
          self.last_state = self.actual_state
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
@@ -630,14 +670,40 @@ class ControlTask:
       # Entry
       if(self.actual_state != State.FINDING_WALL):
          self.actual_state = self.next_state
+         self.peripherals.driveRobotForward(0.3, 0, 0)
       
       # Do
       self.findWall()
       
       # Exit
       if(self.close_wall == True):
+         self.next_state      = State.ROTATING_TILL_PARALLEL
+         self.last_state      = self.actual_state
+         self.lastRotationDir = 1
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+
+   def rotateTillParallel(self):
+      # Entry
+      if(self.actual_state != State.ROTATING_TILL_PARALLEL):
+         self.actual_state = self.next_state
+         self.is_rotating  = True
+         self.peripherals.rotate(self.lastRotationDir, ((APPROX_PI/2) - 0.05), 0.3)
+         self.is_rotating  = False
+      
+      # Do
+      self.leftDistQueue.push(self.peripherals.getLeftDistance())
+      self.is_rotating = True
+      self.peripherals.rotate(self.lastRotationDir, 0.08, 0.3)
+      time.sleep(0.2)
+      self.is_rotating = False
+      
+      # Exit
+      if(self.is_parallel_wall == True):
          self.next_state = State.SEARCHING_BASE_WALL
          self.last_state = self.actual_state
+         self.leftDistQueue.reset()
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
@@ -676,6 +742,7 @@ class ControlTask:
    def searchingBaseUsingCamera(self):
       # Entry
       if(self.actual_state != State.SEARCHING_BASE_CAM):
+         self.rotateInDirectOfBase()
          self.actual_state = self.next_state
          self.status = "returning_to_base"
       
@@ -824,8 +891,9 @@ class ControlTask:
          self.last_state = self.actual_state
          self.status = ""
       elif(self.close_wall == True):
-         self.next_state = State.AVOIDING_WALL
-         self.last_state = self.actual_state
+         self.lastRotationDir = 1
+         self.next_state      = State.ROTATING_TILL_PARALLEL
+         self.last_state      = self.actual_state
          self.status = ""
       elif(self.static_object_detected == True):
          self.next_state = State.AVOIDING_STATIC_OBJECT
@@ -834,7 +902,6 @@ class ControlTask:
       elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
          self.next_state = State.SEARCHING_BASE_CAM
          self.last_state = self.actual_state
-         self.rotateInDirectOfBase()
          self.status = ""
       elif(self.ball_detected == True):
          self.next_state = State.CATCHING_BALL
@@ -847,6 +914,7 @@ class ControlTask:
          self.actual_state = self.next_state
       
       # Do
+      self.leftDistQueue.push(self.peripherals.getLeftDistance())
       self.moveParallelWall()
       
       # Exit
@@ -985,11 +1053,48 @@ class ControlTask:
          self.last_state = self.actual_state
 
    def findWall(self):
-      print("Not implemented")
+      # It is just moving forward until it finds a wall
       return
 
+   # Takes a populated array  of distances to the left wall.
+   # If the average distance is less than DIST_TOO_CLOSE_IN_CM cm, the robot rotates to the right a small amount,
+   # moves a bit forward and then rotates to the left the same amount.
+   # If the average distance is greater than 40 cm, the robot rotates to the left a small amount,
+   # moves a bit forward and then rotates to the right the same amount.
+   # If the average distance is between DIST_TOO_CLOSE_IN_CM and (DIST_TOO_CLOSE_IN_CM + 10) cm, the robot moves forward.
    def moveParallelWall(self):
-      print("Not implemented")
+      if (self.leftDistQueue.getLength() < LEFT_DIST_QUEUE_SIZE):
+         return
+      
+      avgDist = self.leftDistQueue.getAvg()
+
+      if (avgDist < DIST_TOO_CLOSE_IN_CM):
+         self.is_rotating = True
+         self.peripherals.rotate(1, 0.1, 0.3)
+         self.is_rotating = False
+         time.sleep(0.2)
+         self.peripherals.driveRobotForward(0.3, 0, 0)
+         time.sleep(0.2)
+         self.is_rotating = True
+         self.peripherals.rotate(0, 0.1, 0.3)
+         self.is_rotating = False
+      elif (avgDist > (DIST_TOO_CLOSE_IN_CM + 10)):
+         self.is_rotating = True
+         self.peripherals.rotate(0, 0.1, 0.3)
+         self.is_rotating = False
+         time.sleep(0.2)
+         self.peripherals.driveRobotForward(0.3, 0, 0)
+         time.sleep(0.2)
+         self.is_rotating = True
+         self.peripherals.rotate(1, 0.1, 0.3)
+         self.is_rotating = False
+      else:
+         self.peripherals.driveRobotForward(0.3, 0, 0)
+         time.sleep(0.2)
+         self.peripherals.driveRobotForward(0.5, 0, 0)
+         time.sleep(0.2)
+         self.peripherals.driveRobotForward(0.7, 0, 0)
+      
       return
 
    # Rotates the robot, aligns with the center of the base and parks the robot backwards
@@ -1008,12 +1113,13 @@ class ControlTask:
       self.peripherals.driveRobotBackward(desired_pwm, 0, 0)
       time.sleep(time_to_go)
 
-      self.is_rotating = True
-      if (robot_ang_rel_to_base < 0):
-         self.peripherals.rotate(1, abs(robot_ang_rel_to_base), 0.3)
-      else:
-         self.peripherals.rotate(0, abs(robot_ang_rel_to_base), 0.3)
-      self.is_rotating = False
+      if (self.peripherals.getBackDistance() > 2):
+         self.is_rotating = True
+         if (robot_ang_rel_to_base < 0):
+            self.peripherals.rotate(1, abs(robot_ang_rel_to_base), 0.3)
+         else:
+            self.peripherals.rotate(0, abs(robot_ang_rel_to_base), 0.3)
+         self.is_rotating = False
       
       self.peripherals.driveRobotBackward(0.15, 0, 0)
 
