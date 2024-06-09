@@ -33,7 +33,7 @@ class RxBluetoothMsg:
          self.tasksCommand.setTimeToStartTasks(parsedMsg["schedule"]["start_time"])
          self.tasksCommand.setTimeToEndTasks(parsedMsg["schedule"]["end_time"])
       else:
-         print("Unknown message type")
+         print(f"Received robot command: {self.robot_command}")
          self.tasksCommand.setStartTasksNow(False)
          self.tasksCommand.setTimeToStartTasks("00:00:00")
          self.tasksCommand.setTimeToEndTasks("00:00:00")

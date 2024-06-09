@@ -9,8 +9,20 @@ import cv2
 from picamera2 import Picamera2, Preview
 import numpy as np
 
-dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 20
+IR_CENTER_THRESHOLD_IN_PIXELS = 15
 
+WHEEL_DIAMETER_IN_M = 0.068
+APPROX_PI = 3.141592
+# Enum for forward and backward directions
+class Direction(Enum):
+   BACKWARD = 0
+   FORWARD = 1
+
+MAX_MOTOR_RMP = 100
+WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * WHEEL_DIAMETER_IN_M
+
+dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
 
 def closest(element):
@@ -36,6 +48,12 @@ class State(Enum):
    BALL_STUCK = 16,
    WAITING_USER = 17,
    BASE_NOT_FOUND = 18
+   GOING_AFTER_BASE_CAM = 19
+
+class Position(Enum):
+   X = 0,
+   Y = 1,
+   THETA = 2
 
 global_map = []
 
@@ -63,8 +81,9 @@ class ControlTask:
       self.is_rotating = False
       self.status = ""
       self.balls = []
-      self.cam = Picamera2(1)
-      self.cam1 = Picamera2(0)
+      self.baseIRPosition = [0, 0]
+      self.cam = Picamera2(0)
+      self.cam1 = Picamera2(1)
       cfg = self.cam.create_preview_configuration(main={'size': (960, 540)})
       cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
       self.cam.configure(cfg)
@@ -75,6 +94,9 @@ class ControlTask:
       self.cam.framerate = 10
       self.cam1.framerate = 10
       self.last_position = [0, 0, 0]
+      self.lastRotationDir = 0
+      self.lastTimeFarFromBase = 0.0
+      self.starting_err_time = 0.0
 
       self.cam.start()
       self.cam1.start()
@@ -93,7 +115,7 @@ class ControlTask:
       self.ball_detector_th = threading.Thread(target=self.ballDetectorTh)
       #self.static_obj_detector_th = threading.Thread(target=self.staticObjDetectorTh)
       self.odometry_thread = threading.Thread(target=self.runOdometry)
-      self.bluetooth_thread = threading.Thread(target=self.bluetoothSenderTh)
+      self.bluetooth_thread = threading.Thread(target=self.bluetoothHandlerTh)
 
    def runOdometry(self):
       while(True):
@@ -107,10 +129,27 @@ class ControlTask:
          self.last_position[2] = odom[2]
          time.sleep(0.05)
    
-   def bluetoothSenderTh(self):
+   # Handles received bluetooth messages and sends periodic messages
+   def bluetoothHandlerTh(self):
       while True:
          self.updateBtPeriodicMsg()
          self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
+
+         try:
+            msg = self.ctrlMsgQueue.get(timeout=0.5)
+
+            if msg != "":
+               if msg == "pause":
+                  self.pause_command_rcvd = True
+               elif msg == "resume":
+                  self.resume_command_rcvd = True
+               elif msg == "return_to_base":
+                  self.stop_command_rcvd = True
+
+               self.ctrlMsgQueue.task_done()
+         except:
+            pass
+         
          time.sleep(0.5)
 
    def runRobot(self):
@@ -174,12 +213,15 @@ class ControlTask:
       # print("Batt ", self.peripherals.getLowerBatteryLvl())
       # self.peripherals.rotate(0, 1)
 
-      # self.approachBall()
+      self.fsmInit()
+
+      self.actual_state = State.SEARCHING_BASE_CAM
+      self.next_state = State.SEARCHING_BASE_CAM
+      self.last_state = State.SEARCHING_BASE_CAM
+
       while(True):
-         print(self.peripherals.getFrontDistance())
-         if(self.peripherals.getFrontDistance() < 20):
-            self.moveAroundObject()
-         time.sleep(0.1)
+         self.fsmRun()
+         time.sleep(0.01)
       # print("FINALIZADO")
 
       # adsCtrlRate = 30.0 / 100.0
@@ -290,20 +332,38 @@ class ControlTask:
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
          # a = cv2.resize(a, (960, 540))
 
-         # a = cv2.rotate(a, cv2.ROTATE_180)
+         a = cv2.rotate(a, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
-
+\
          if a is None:
             continue
 
          a_grey = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
          
-         # Add logic to detect Infrared
+         # Creates a binary image for the infrared detection. Blurrs the image and finds the circles
+         # using the HoughCircles method from OpenCV
          if(self.search_for_IR == True):
-            a_grey_up = a_grey[300:, :]
-            (a_t, threshInv) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
-            if(time.time() - self.time_findIR > 5):
+            a_grey_up = a_grey[:300, :]
+            (a_t, ir_binary_img) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+            
+            ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=15, minRadius=5, maxRadius=25)
+
+            if ir_balls is not None:
+               ir_balls = np.uint16(np.around(ir_balls))
+               for ball in ir_balls[0, :]:
+                  print(f"IR ball detected at: {ball[0]}, {ball[1]}")
+                  if ir_binary_img[ball[1]][ball[0]] > 150:
+                     self.baseIRPosition = [ball[0], ball[1]]
+                     self.time_findIR = time.time()
+                     cv2.circle(a_grey_up, (ball[0], ball[1]), 1, (0,100,100), 3)
+                     cv2.circle(a_grey_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
+            else:
+               self.baseIRPosition = [0, 0]
+            # cv2.imshow("iR", a_grey_up) 
+            # cv2.waitKey(1)
+            if(time.time() - self.time_findIR > 10):
                self.base_not_found = True
                self.search_for_IR = False
             
@@ -477,7 +537,7 @@ class ControlTask:
       self.base_connected = False            # IDK
       self.front_ir_detected_but_not_end = self.peripherals.isBallStuck()
       self.robot_running_encoder = (self.peripherals.getLeftEncoderSteps() - self.encoder_left_last) != 0 and (self.peripherals.getRightEncoderSteps() - self.encoder_right_last) != 0
-      self.robot_running_imu = False         # Needs IMU
+      self.robot_running_imu = True         # Needs IMU
       self.resume_command_rcvd = False       # IDK
       self.pause_command_rcvd = False        # IDK
       self.balls_colected = self.peripherals.getCollectedBallsQty()
@@ -497,6 +557,8 @@ class ControlTask:
          self.findingWall()
       elif(self.next_state == State.SEARCHING_BASE_CAM):
          self.searchingBaseUsingCamera()
+      elif(self.next_state == State.GOING_AFTER_BASE_CAM):
+         self.goToBaseUsingCamera()
       elif(self.next_state == State.ROBOT_STUCK):
          self.robotStuck()
       elif(self.next_state == State.WAITING_FOR_CHARGER):
@@ -586,11 +648,23 @@ class ControlTask:
          self.actual_state = self.next_state
       
       # Do
-      self.steerBase()
+      if (self.lastTimeFarFromBase == 0.0):
+         self.steerBase()
+
+      if (self.peripherals.getBackDistance() > 2):
+         self.lastTimeFarFromBase = time.time()
+      
+      if (self.peripherals.isHallEffectSensActive() or ((time.time() - self.lastTimeFarFromBase > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
+         self.peripherals.stopRobot()
+         self.peripherals.setVacuumMotorPWM(0.0)
+         self.peripherals.resetEncoders()
+         self.base_connected = True
 
       # Exit
       if(self.base_connected == True):
          self.next_state = State.CONNECTED_TO_BASE
+         self.baseIRPosition = [0, 0]
+         self.lastTimeFarFromBase = 0.0
          self.last_state = self.actual_state
          self.status = ""
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
@@ -598,7 +672,6 @@ class ControlTask:
          self.last_state = self.actual_state
          self.status = ""
    
-   ## REVIEW THIS BEFORE CONTINUE
    # Increase one state, moving to base
    def searchingBaseUsingCamera(self):
       # Entry
@@ -609,8 +682,47 @@ class ControlTask:
       # Do
       self.findIR()
 
+      self.is_rotating = True
+      print(f"base position: {self.baseIRPosition}")
+      if self.baseIRPosition[0] == 0:
+         self.peripherals.rotate(self.lastRotationDir, 0.05, 0.3)
+         time.sleep(0.2)
+      self.is_rotating = False
+
       # Exit
-      if(self.base_not_found == True):
+      if self.baseIRPosition[0] != 0:
+         self.next_state = State.GOING_AFTER_BASE_CAM
+         self.last_state = self.actual_state
+      elif(self.base_not_found == True):
+         self.base_not_found = False
+         self.next_state = State.BASE_NOT_FOUND
+         self.last_state = self.actual_state
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+         self.status = ""
+
+   def goToBaseUsingCamera(self):
+      if(self.actual_state != State.GOING_AFTER_BASE_CAM):
+         self.actual_state = self.next_state
+         self.status = "returning_to_base"
+      
+      # Do
+      self.findIR()
+
+      if abs(self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < IR_CENTER_THRESHOLD_IN_PIXELS:
+         self.rotateToCenterBase()
+
+      self.peripherals.driveRobotForward(0.4, 0, 0)
+
+      # Exit
+      if (self.baseIRPosition[1] < 10):
+         self.peripherals.driveRobotForward(0.0, 0, 0)
+         self.next_state = State.CONNECTING_TO_BASE
+         self.search_for_IR = False
+         self.last_state = self.actual_state
+         self.status = ""
+      elif(self.base_not_found == True):
          self.base_not_found = False
          self.next_state = State.BASE_NOT_FOUND
          self.last_state = self.actual_state
@@ -653,13 +765,13 @@ class ControlTask:
    def unloading(self):
       # Entry
       if(self.actual_state != State.UNLOADING):
-         start_time = time.time()
+         self.starting_err_time = time.time()
          self.actual_state = self.next_state
       
       # Do
       
       # Exit
-      if(time.time() - start_time >= 15):
+      if(time.time() - self.starting_err_time >= 15):
          self.next_state = State.CONNECTED_TO_BASE
          self.last_state = self.actual_state
    
@@ -722,6 +834,7 @@ class ControlTask:
       elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
          self.next_state = State.SEARCHING_BASE_CAM
          self.last_state = self.actual_state
+         self.rotateInDirectOfBase()
          self.status = ""
       elif(self.ball_detected == True):
          self.next_state = State.CATCHING_BALL
@@ -814,7 +927,7 @@ class ControlTask:
    def ballStuck(self):
       if(self.actual_state != State.BALL_STUCK):
          self.stopMotors()
-         start_time = time.time()
+         self.starting_err_time = time.time()
          self.actual_state = self.next_state
       
       # Do
@@ -825,7 +938,7 @@ class ControlTask:
          self.next_state = State.SEARCHING_BALLS
          self.sendWarningUser("")
          self.last_state = self.actual_state
-      elif(time.time() - start_time > 3):
+      elif(time.time() - self.starting_err_time > 3):
          self.next_state = State.WAITING_USER
          self.last_state = self.actual_state
 
@@ -841,7 +954,7 @@ class ControlTask:
    def robotStuck(self):
       if(self.actual_state != State.BALL_STUCK):
          self.stopMotors()
-         start_time = time.time()
+         self.starting_err_time = time.time()
          self.actual_state = self.next_state
       
       # Do
@@ -852,21 +965,21 @@ class ControlTask:
          self.next_state = self.last_state
          self.sendWarningUser("")
          self.last_state = self.actual_state
-      elif(time.time() - start_time > 3):
+      elif(time.time() - self.starting_err_time > 3):
          self.next_state = State.WAITING_USER
          self.last_state = self.actual_state
 
    def baseNotFound(self):
       # Entry
       if(self.actual_state != State.BASE_NOT_FOUND):
-         start_time = time.time()
+         self.starting_err_time = time.time()
          self.actual_state = self.next_state
       
       # Do
       self.sendWarningUser("base_not_found")
 
       # Exit
-      if(time.time() - start_time >= 1):
+      if(time.time() - self.starting_err_time >= 1):
          self.sendWarningUser("")
          self.next_state = State.SEARCHING_BASE_WALL
          self.last_state = self.actual_state
@@ -879,8 +992,31 @@ class ControlTask:
       print("Not implemented")
       return
 
+   # Rotates the robot, aligns with the center of the base and parks the robot backwards
    def steerBase(self):
-      print("Not implemented")
+      robot_ang_rel_to_base = math.atan2(self.last_position[1], self.last_position[0])
+
+      self.is_rotating = True
+      self.peripherals.rotate(0, APPROX_PI, 0.3) # Rotates 180 degrees
+      self.is_rotating = False
+
+      # Moves backwards in a straight line for time_to_go seconds
+      desired_dist_to_go_bkwr = 0.15
+      desired_pwm = 0.3
+      m_per_s = ((MAX_MOTOR_RMP * desired_pwm) * WHEEL_CIRCUMFERENCE_IN_M) / 60
+      time_to_go = desired_dist_to_go_bkwr / m_per_s
+      self.peripherals.driveRobotBackward(desired_pwm, 0, 0)
+      time.sleep(time_to_go)
+
+      self.is_rotating = True
+      if (robot_ang_rel_to_base < 0):
+         self.peripherals.rotate(1, abs(robot_ang_rel_to_base), 0.3)
+      else:
+         self.peripherals.rotate(0, abs(robot_ang_rel_to_base), 0.3)
+      self.is_rotating = False
+      
+      self.peripherals.driveRobotBackward(0.15, 0, 0)
+
       return
    
    def findIR(self):
@@ -901,6 +1037,39 @@ class ControlTask:
    def moveInPattern(self):
       print("Not implemented")
       return
+
+   # Takes the robot position from odometry, calculates the angle of the base relative to the robot,
+   # compares it with the angle of the robot and rotates the robot to align it with the base
+   def rotateInDirectOfBase(self):
+      self.peripherals.driveRobotForward(0.0, 0, 0)
+
+      base_angle = math.atan2(self.last_position[1], self.last_position[0])
+      base_angle_rel_to_robot = APPROX_PI - base_angle
+      robot_angle = self.last_position[2]
+
+      if (robot_angle < 0):
+         robot_angle += 2*APPROX_PI
+
+      delta_angle = robot_angle - base_angle_rel_to_robot
+
+      # Rotates a little bit less than needed
+      self.is_rotating = True
+      if delta_angle < 0:
+         self.lastRotationDir = 0
+         self.peripherals.rotate(self.lastRotationDir, ((-delta_angle) - 0.2), 0.3)
+      else:
+         self.lastRotationDir = 1
+         self.peripherals.rotate(self.lastRotationDir, (delta_angle - 0.2), 0.3)
+      self.is_rotating = False
+
+   # Rotates the robot according to the baseIRPosition found, to lign it up with the base
+   def rotateToCenterBase(self):
+      self.is_rotating = True
+      if ((self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) > IR_CENTER_THRESHOLD_IN_PIXELS):
+         self.peripherals.rotate(1, 0.07, 0.3)
+      elif ((self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < -IR_CENTER_THRESHOLD_IN_PIXELS):
+         self.peripherals.rotate(0, 0.07, 0.3)
+      self.is_rotating = False
 
    # Improve this
    def moveAroundObject(self):
