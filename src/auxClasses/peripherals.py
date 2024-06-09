@@ -277,6 +277,10 @@ class Peripherals:
       return
    
    def stopRobot(self):
+      self.leftMotorTargetStepsPerS  = 0
+      self.rightMotorTargetStepsPerS = 0
+      self.currLeftMotorPWM  = 0
+      self.currRightMotorPWM = 0
       self.leftMotor.stop()
       self.rightMotor.stop()
 

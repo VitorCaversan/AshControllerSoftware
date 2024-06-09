@@ -9,8 +9,18 @@ import cv2
 from picamera2 import Picamera2, Preview
 import numpy as np
 
+IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 20
+IR_CENTER_THRESHOLD_IN_PIXELS = 15
 
-IR_CENTER_THRESHOLD_IN_CM = 20
+WHEEL_DIAMETER_IN_M = 0.068
+APPROX_PI = 3.141592
+# Enum for forward and backward directions
+class Direction(Enum):
+   BACKWARD = 0
+   FORWARD = 1
+
+MAX_MOTOR_RMP = 100
+WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * WHEEL_DIAMETER_IN_M
 
 dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
@@ -85,6 +95,7 @@ class ControlTask:
       self.cam1.framerate = 10
       self.last_position = [0, 0, 0]
       self.lastRotationDir = 0
+      self.lastTimeFarFromBase = 0.0
 
       self.cam.start()
       self.cam1.start()
@@ -611,6 +622,15 @@ class ControlTask:
       # Do
       self.steerBase()
 
+      if (self.peripherals.getBackDistance() > 2):
+         self.lastTimeFarFromBase = time.time()
+      
+      if (self.peripherals.isHallEffectSensActive() or ((time.time() - self.lastTimeFarFromBase > 2.0) and (self.peripherals.getBackDistance() < 2.0))):
+         self.peripherals.stopRobot()
+         self.peripherals.setVacuumMotorPWM(0.0)
+         self.peripherals.resetEncoders()
+         self.base_connected = True
+
       # Exit
       if(self.base_connected == True):
          self.next_state = State.CONNECTED_TO_BASE
@@ -656,7 +676,7 @@ class ControlTask:
       # Do
       self.findIR()
 
-      if abs(self.baseIRPosition[Position.X]) < IR_CENTER_THRESHOLD_IN_CM:
+      if abs(self.baseIRPosition[Position.X] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < IR_CENTER_THRESHOLD_IN_PIXELS:
          self.rotateToCenterBase()
 
       self.peripherals.driveRobotForward(0.4, 0, 0)
@@ -937,8 +957,28 @@ class ControlTask:
       print("Not implemented")
       return
 
+   # Rotates the robot, aligns with the center of the base and parks the robot backwards
    def steerBase(self):
-      print("Not implemented")
+      robot_ang_rel_to_base = math.atan2(self.last_position[Position.Y], self.last_position[Position.X])
+
+      self.peripherals.rotate(0, APPROX_PI, 0.3) # Rotates 180 degrees
+
+      # Moves backwards in a straight line for time_to_go seconds
+      desired_dist_to_go_bkwr = 0.35
+      desired_pwm = 0.3
+      m_per_s = ((MAX_MOTOR_RMP * desired_pwm) * WHEEL_CIRCUMFERENCE_IN_M) / 60
+      time_to_go = desired_dist_to_go_bkwr / m_per_s
+      self.peripherals.driveRobotBackward(desired_pwm, 0, 0)
+      time.sleep(time_to_go)
+
+
+      if (robot_ang_rel_to_base < 0):
+         self.peripherals.rotate(1, abs(robot_ang_rel_to_base), 0.3)
+      else:
+         self.peripherals.rotate(0, abs(robot_ang_rel_to_base), 0.3)
+      
+      self.peripherals.driveRobotBackward(0.15, 0, 0)
+
       return
    
    def findIR(self):
@@ -963,12 +1003,14 @@ class ControlTask:
    # Takes the robot position from odometry, calculates the angle of the base relative to the robot,
    # compares it with the angle of the robot and rotates the robot to align it with the base
    def rotateInDirectOfBase(self):
+      self.peripherals.driveRobotForward(0.0, 0, 0)
+
       base_angle = math.atan2(self.last_position[Position.Y], self.last_position[Position.X])
-      base_angle_rel_to_robot = math.pi - base_angle
+      base_angle_rel_to_robot = APPROX_PI - base_angle
       robot_angle = self.last_position[Position.THETA]
 
       if (robot_angle < 0):
-         robot_angle += 2*math.pi
+         robot_angle += 2*APPROX_PI
 
       delta_angle = robot_angle - base_angle_rel_to_robot
 
@@ -982,9 +1024,9 @@ class ControlTask:
 
    # Rotates the robot according to the baseIRPosition found, to lign it up with the base
    def rotateToCenterBase(self):
-      if (self.baseIRPosition[Position.X] > IR_CENTER_THRESHOLD_IN_CM):
+      if ((self.baseIRPosition[Position.X] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) > IR_CENTER_THRESHOLD_IN_PIXELS):
          self.peripherals.rotate(1, 0.07, 0.3)
-      elif (self.baseIRPosition[Position.X] < -IR_CENTER_THRESHOLD_IN_CM):
+      elif ((self.baseIRPosition[Position.X] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < -IR_CENTER_THRESHOLD_IN_PIXELS):
          self.peripherals.rotate(0, 0.07, 0.3)
 
    # Improve this
