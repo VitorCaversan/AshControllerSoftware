@@ -215,9 +215,9 @@ class ControlTask:
 
       self.fsmInit()
 
-      self.actual_state = State.SEARCHING_BASE_CAM
-      self.next_state = State.SEARCHING_BASE_CAM
-      self.last_state = State.SEARCHING_BASE_CAM
+      self.actual_state = State.SEARCHING_BALLS
+      self.next_state = State.SEARCHING_BALLS
+      self.last_state = State.SEARCHING_BALLS
 
       while(True):
          self.fsmRun()
@@ -276,7 +276,7 @@ class ControlTask:
       self.thread.start()
       self.odometry_thread.start()
       self.bluetooth_thread.start()
-      # self.ball_detector_th.start()
+      self.ball_detector_th.start()
       # self.static_obj_detector_th.start()
    
    def stop(self):
@@ -335,7 +335,7 @@ class ControlTask:
          a = cv2.rotate(a, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
-\
+
          if a is None:
             continue
 
@@ -395,7 +395,8 @@ class ControlTask:
                      print("center dist: ", dist_center_ball, " cm")
                      print("angle with center: ", theta_center*180/math.pi)
                      x_ball, y_ball = self.convert(dist_center_ball, theta_center)
-                     self.addBall(x_ball, y_ball)
+                     if dist_ball < 100:
+                        self.addBall(x_ball, y_ball)
 
          # verifier()
          print(self.balls)
@@ -578,6 +579,7 @@ class ControlTask:
       elif(self.next_state == State.PAUSED):
          self.robotPaused()
       elif(self.next_state == State.CATCHING_BALL):
+         print("Entering catching ball state")
          self.catchingBall()
       elif(self.next_state == State.BALL_STUCK):
          self.ballStuck()
@@ -896,25 +898,29 @@ class ControlTask:
    
    def catchingBall(self):
       if(self.actual_state != State.CATCHING_BALL):
-         self.reduceSpeed()
-         self.increaseVacuumPower()
          self.status = "collecting_balls"
          self.actual_state = self.next_state
       
       # Do
       self.approachBall()
+
+      # Due to too much ghost balls
+      self.balls = []
+      # Due to not 100% proof logic
+      self.ball_caught = True
       
       # Exit
-      if(self.robot_running_encoder == True and self.robot_running_imu == False):
-         self.next_state = State.ROBOT_STUCK
-         self.last_state = self.actual_state
-         self.status = ""
-      elif(self.ball_caught == True):
-         self.increaseSpeed()
-         self.reduceVacuumPower()
+      if(self.ball_caught == True):
+         #self.increaseSpeed()
+         #self.reduceVacuumPower()
          self.next_state = State.SEARCHING_BALLS
          self.last_state = self.actual_state
          self.status = ""
+      elif(self.robot_running_encoder == True and self.robot_running_imu == False):
+         self.next_state = State.ROBOT_STUCK
+         self.last_state = self.actual_state
+         self.status = ""
+
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
@@ -1035,7 +1041,26 @@ class ControlTask:
       self.peripherals.close()
    
    def moveInPattern(self):
-      print("Not implemented")
+      print("Entering move in pattern")
+      self.peripherals.driveRobotForward(0.1, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.2, 0, 0)
+      time.sleep(0.3)
+      self.peripherals.driveRobotForward(0.3, 0, 0)
+      time.sleep(0.3)
+
+      while True:
+         self.peripherals.driveRobotForward(0.5, 0, 0)
+
+         if self.peripherals.getFrontDistance() < 30:
+            self.is_rotating = True
+            self.peripherals.rotate(1, APPROX_PI / 2, 0.3)
+            self.is_rotating = False
+
+         if self.balls != []:
+            print("saindo do move in pattern")
+            self.next_state = State.CATCHING_BALL
+            break
       return
 
    # Takes the robot position from odometry, calculates the angle of the base relative to the robot,
@@ -1109,9 +1134,9 @@ class ControlTask:
       while(ball[0] > 1 or ball[0] < -1):
          angle = math.atan(ball[0]/ball[1])
          if(ball[0] > 0):
-            self.peripherals.rotate(0, 0.01, 0.17)
-         else:
             self.peripherals.rotate(1, 0.01, 0.17)
+         else:
+            self.peripherals.rotate(0, 0.01, 0.17)
          time.sleep(0.05)
       self.is_rotating = False
       self.peripherals.driveRobotForward(0.1, 0, 0)

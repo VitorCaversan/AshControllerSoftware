@@ -1,4 +1,4 @@
-from gpiozero import DistanceSensor
+from gpiozero import DistanceSensor, DigitalInputDevice
 import time
 
 
@@ -7,6 +7,7 @@ frontDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
 rightDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
 backDistSens    = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
 
+hallEffectSens = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
 
 
 def getLeftDistance() -> float:
@@ -26,11 +27,12 @@ def getBackDistance() -> float:
 
 
 i=0
-while(i<100):
-    print("Dist left: ",  getLeftDistance())
-    print("Dist right: ",  getRightDistance())
-    print("Dist back: ",  getBackDistance())
-    print("Dist front: ",  getFrontDistance())
+while True:
+    # print("Dist left: ",  getLeftDistance())
+    # print("Dist right: ",  getRightDistance())
+    # print("Dist back: ",  getBackDistance())
+    # print("Dist front: ",  getFrontDistance())
+    print(f"Hall sensor: {hallEffectSens.is_active}")
     time.sleep(0.5)
     i+=1
 

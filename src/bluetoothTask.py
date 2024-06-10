@@ -117,7 +117,7 @@ class BluetoothTask:
       subprocess.run("bluetoothctl pairable on", shell=True)
 
    def sendRobotStatus(self, json: str):
-      print(f"Before sending")
+      # print(f"Before sending")
       if self.client:
          print(f"Sending message: {json}")
          self.client.send((json + '\n').encode('utf-8'))
