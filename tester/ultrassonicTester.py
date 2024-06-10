@@ -28,10 +28,10 @@ def getBackDistance() -> float:
 
 i=0
 while True:
-    # print("Dist left: ",  getLeftDistance())
-    # print("Dist right: ",  getRightDistance())
-    # print("Dist back: ",  getBackDistance())
-    # print("Dist front: ",  getFrontDistance())
+    print("Dist left: ",  getLeftDistance())
+    print("Dist right: ",  getRightDistance())
+    print("Dist back: ",  getBackDistance())
+    print("Dist front: ",  getFrontDistance())
     print(f"Hall sensor: {hallEffectSens.is_active}")
     time.sleep(0.5)
     i+=1

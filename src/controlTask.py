@@ -168,9 +168,10 @@ class ControlTask:
          self.mainMsgQueue.put(json.dumps(self.btPeriodicMsg))
 
          try:
-            msg = self.ctrlMsgQueue.get(timeout=0.5)
+            msg = self.ctrlMsgQueue.get(timeout=1.0)
 
             if msg != "":
+               print(f"new msg: {msg}")
                if msg == "pause":
                   self.pause_command_rcvd = True
                elif msg == "resume":
@@ -252,6 +253,8 @@ class ControlTask:
       self.last_state = State.SEARCHING_BALLS
 
       while(True):
+         print(f"Estado atual {self.actual_state}")
+         print(f"Próximo estado {self.next_state}")
          self.fsmRun()
          time.sleep(0.01)
       # print("FINALIZADO")
@@ -328,10 +331,10 @@ class ControlTask:
       exit(1)
    
    def updateBtPeriodicMsg(self):
-      self.btPeriodicMsg["sens_dist_left"] = self.peripherals.getLeftDistance()
-      self.btPeriodicMsg["sens_dist_front"] = self.peripherals.getFrontDistance()
-      self.btPeriodicMsg["sens_dist_right"] = self.peripherals.getRightDistance()
-      self.btPeriodicMsg["sens_dist_back"] = self.peripherals.getBackDistance()
+      self.btPeriodicMsg["sens_dist_left"] = round(self.peripherals.getLeftDistance(), 2)
+      self.btPeriodicMsg["sens_dist_front"] = round(self.peripherals.getFrontDistance(), 2)
+      self.btPeriodicMsg["sens_dist_right"] = round(self.peripherals.getRightDistance(), 2)
+      self.btPeriodicMsg["sens_dist_back"] = round(self.peripherals.getBackDistance(), 2)
       self.btPeriodicMsg["battery_level"] = 30.0
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
@@ -391,8 +394,6 @@ class ControlTask:
                      self.time_findIR = time.time()
                      cv2.circle(a_grey_up, (ball[0], ball[1]), 1, (0,100,100), 3)
                      cv2.circle(a_grey_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
-            else:
-               self.baseIRPosition = [0, 0]
             # cv2.imshow("iR", a_grey_up) 
             # cv2.waitKey(1)
             if(time.time() - self.time_findIR > 10):
@@ -431,7 +432,7 @@ class ControlTask:
                         self.addBall(x_ball, y_ball)
 
          # verifier()
-         print(self.balls)
+         # print(self.balls)
          # cv2.imshow("iR", threshInv) 
          # cv2.waitKey(1)
          # cv2.imshow("b", b_grey)
@@ -562,7 +563,7 @@ class ControlTask:
       self.ball_detected = len(self.balls) > 0
       # self.static_object_detected = False
       self.close_wall = self.peripherals.getFrontDistance() < DIST_TOO_CLOSE_IN_CM
-      self.stop_command_rcvd = False         # IDK
+      # self.stop_command_rcvd = False         # IDK
       self.load_full = self.peripherals.getCollectedBallsQty() > 10
       self.end_schedule = False              # IDK
       self.ball_caught = (self.peripherals.getCollectedBallsQty() - self.balls_colected) > 0
@@ -779,7 +780,7 @@ class ControlTask:
       # Do
       self.findIR()
 
-      if abs(self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < IR_CENTER_THRESHOLD_IN_PIXELS:
+      if abs(self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) > IR_CENTER_THRESHOLD_IN_PIXELS:
          self.rotateToCenterBase()
 
       self.peripherals.driveRobotForward(0.4, 0, 0)
@@ -878,6 +879,12 @@ class ControlTask:
       # Entry
       if(self.actual_state != State.SEARCHING_BALLS):
          self.actual_state = self.next_state
+         self.peripherals.driveRobotForward(0.1, 0, 0)
+         time.sleep(0.3)
+         self.peripherals.driveRobotForward(0.2, 0, 0)
+         time.sleep(0.3)
+         self.peripherals.driveRobotForward(0.3, 0, 0)
+         time.sleep(0.3)
          self.status = "searching_for_balls"
       
       # Do
@@ -888,6 +895,11 @@ class ControlTask:
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
          self.status = ""
+      elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
+         self.next_state = State.SEARCHING_BASE_CAM
+         self.last_state = self.actual_state
+         self.status = ""
+         self.stop_command_rcvd = False
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
@@ -899,10 +911,6 @@ class ControlTask:
          self.status = ""
       elif(self.static_object_detected == True):
          self.next_state = State.AVOIDING_STATIC_OBJECT
-         self.last_state = self.actual_state
-         self.status = ""
-      elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
-         self.next_state = State.SEARCHING_BASE_CAM
          self.last_state = self.actual_state
          self.status = ""
       elif(self.ball_detected == True):
@@ -988,7 +996,6 @@ class ControlTask:
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
          self.status = ""
-
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
@@ -1147,26 +1154,23 @@ class ControlTask:
       self.peripherals.close()
    
    def moveInPattern(self):
-      print("Entering move in pattern")
-      self.peripherals.driveRobotForward(0.1, 0, 0)
-      time.sleep(0.3)
-      self.peripherals.driveRobotForward(0.2, 0, 0)
-      time.sleep(0.3)
       self.peripherals.driveRobotForward(0.3, 0, 0)
-      time.sleep(0.3)
 
-      while True:
-         self.peripherals.driveRobotForward(0.5, 0, 0)
+      if self.peripherals.getFrontDistance() < 30:
+         self.is_rotating = True
+         self.peripherals.rotate(1, APPROX_PI / 2, 0.3)
+         self.is_rotating = False
 
-         if self.peripherals.getFrontDistance() < 30:
-            self.is_rotating = True
-            self.peripherals.rotate(1, APPROX_PI / 2, 0.3)
-            self.is_rotating = False
+         self.peripherals.driveRobotForward(0.1, 0, 0)
+         time.sleep(0.3)
+         self.peripherals.driveRobotForward(0.2, 0, 0)
+         time.sleep(0.3)
+         self.peripherals.driveRobotForward(0.3, 0, 0)
+         time.sleep(0.3)
 
-         if self.balls != []:
-            print("saindo do move in pattern")
-            self.next_state = State.CATCHING_BALL
-            break
+      if self.balls != []:
+         self.next_state = State.CATCHING_BALL
+
       return
 
    # Takes the robot position from odometry, calculates the angle of the base relative to the robot,
@@ -1197,9 +1201,9 @@ class ControlTask:
    def rotateToCenterBase(self):
       self.is_rotating = True
       if ((self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) > IR_CENTER_THRESHOLD_IN_PIXELS):
-         self.peripherals.rotate(1, 0.07, 0.3)
+         self.peripherals.rotate(1, 0.05, 0.2)
       elif ((self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < -IR_CENTER_THRESHOLD_IN_PIXELS):
-         self.peripherals.rotate(0, 0.07, 0.3)
+         self.peripherals.rotate(0, 0.05, 0.2)
       self.is_rotating = False
 
    # Improve this
@@ -1234,17 +1238,22 @@ class ControlTask:
       if(len(self.balls) == 0):
          return
       ball = self.balls[0]
+      angle = math.atan(ball[0]/ball[1])
 
-      self.is_rotating = True
+      angle_sum = 0
       time.sleep(1)
-      while(ball[0] > 1 or ball[0] < -1):
-         angle = math.atan(ball[0]/ball[1])
+      while(ball[0] > 2 or ball[0] < -2):
+         print(f"ball zero: {ball[0]}")
+         self.is_rotating = True
          if(ball[0] > 0):
-            self.peripherals.rotate(1, 0.01, 0.17)
+            self.peripherals.rotate(1, 0.01, 0.3)
          else:
-            self.peripherals.rotate(0, 0.01, 0.17)
-         time.sleep(0.05)
-      self.is_rotating = False
+            self.peripherals.rotate(0, 0.01, 0.3)
+         self.is_rotating = False
+         angle_sum += 0.01
+         if(angle < (angle_sum - (angle_sum/20))):
+            break
+         time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)
       time.sleep(0.3)
       self.peripherals.driveRobotForward(0.2, 0, 0)

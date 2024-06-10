@@ -256,16 +256,16 @@ class Peripherals:
          self.rightMotor.forward(speed=rebasedSpeed)
          self.leftMotor.backward(speed=rebasedSpeed)
          while (abs(self.encoderRight.steps - initialSteps) < stepsToTurn):
-            print(rebasedSpeed)
-            print("Steps rotation: ", abs(self.encoderRight.steps - initialSteps))
+            #print(rebasedSpeed)
+            #print(f"Steps rotation: {abs(self.encoderRight.steps - initialSteps)} / {stepsToTurn}")
             time.sleep(0.01)
       elif (direction == 1):
          initialSteps = self.encoderLeft.steps
          self.leftMotor.forward(speed=rebasedSpeed)
          self.rightMotor.backward(speed=rebasedSpeed)
          while (abs(self.encoderLeft.steps - initialSteps) < stepsToTurn):
-            print(rebasedSpeed)
-            print("Steps rotation: ", abs(self.encoderLeft.steps - initialSteps))
+            #print(rebasedSpeed)
+            #print("Steps rotation: ", abs(self.encoderLeft.steps - initialSteps))
             time.sleep(0.01)
       else:
          print("Invalid direction")
