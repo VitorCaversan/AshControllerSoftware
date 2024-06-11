@@ -273,7 +273,7 @@ class ControlTask:
       # mean = 0
       i = 0
       while True:
-         a = self.cam.capture_array("main")
+         a = self.cam1.capture_array("main")
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
          # a = cv2.resize(a, (960, 540))
 
@@ -293,7 +293,7 @@ class ControlTask:
             (a_t, ir_binary_img) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
-            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=15, minRadius=5, maxRadius=25)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=35, minRadius=5, maxRadius=25)
 
             if ir_balls is not None:
                ir_balls = np.uint16(np.around(ir_balls))
@@ -316,7 +316,7 @@ class ControlTask:
          a_grey = cv2.normalize(a_grey, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
          
          a_blur = cv2.GaussianBlur(a_grey, (17, 17), 0)
-         circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=13, maxRadius=46)
+         circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=50, maxRadius=70)
          # print(circles)
          if circles is not None:
             circles = np.uint16(np.around(circles))
@@ -351,7 +351,8 @@ class ControlTask:
          # cv2.waitKey(1)
          # cv2.imshow("a", a_grey)
          # cv2.imshow("an", a_norm)
-         # cv2.waitKey(1)
+         cv2.imwrite('img.png', a_grey)
+         cv2.waitKey(1)
          # print(len(a))
          
          if cv2.waitKey(1) == 27:
@@ -1267,25 +1268,34 @@ class ControlTask:
          return
       
       ball = self.balls[0]
-      angle = math.atan(ball[0]/ball[1])
-      angle = abs(angle)
-      angle_sum = 0
+      #angle = math.atan(ball[0]/ball[1])
+      #angle = abs(angle)
+      # angle_sum = 0
+      angle = 0
 
-      time.sleep(1)
-      while(ball[0] > 1 or ball[0] < -1):
-         print(f"ball zero: {ball[0]}")
-         self.is_rotating = True
-         if(ball[0] > 0):
-            self.peripherals.rotate(1, 0.01, 0.25)
-         else:
-            self.peripherals.rotate(0, 0.01, 0.25)
-         self.is_rotating = False
-         angle_sum += 0.01
-         if(angle_sum > (angle - (angle/10))):
-            break
-         time.sleep(0.1)
+      print(
+         f"""
+         Camera trace
+         Coord: {ball}
+         Angle: {angle}
+         """
+      )
 
-      print(self.balls)
+      # time.sleep(1)
+      # while(ball[0] > 1 or ball[0] < -1):
+      #    print(f"ball zero: {ball[0]}")
+      #    self.is_rotating = True
+      #    if(ball[0] > 0):
+      #       self.peripherals.rotate(1, 0.01, 0.25)
+      #    else:
+      #       self.peripherals.rotate(0, 0.01, 0.25)
+      #    self.is_rotating = False
+      #    angle_sum += 0.01
+      #    if(angle_sum > (angle - (angle/10))):
+      #       break
+      #    time.sleep(0.1)
+
+      # print(self.balls)
       self.balls = []
-      print("Restarting test algorithm")
-      time.sleep(10)
+      # print("Restarting test algorithm")
+      # time.sleep(10)
