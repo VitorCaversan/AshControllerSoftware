@@ -55,6 +55,7 @@ class State(Enum):
    BASE_NOT_FOUND = 18
    GOING_AFTER_BASE_CAM = 19
    ROTATING_TILL_PARALLEL = 20
+   ROTATE_TEST = 21
 
 class Position(Enum):
    X = 0,
@@ -410,7 +411,7 @@ class ControlTask:
             circles = np.uint16(np.around(circles))
             # ball_added = False
             for i in circles[0, :]:
-                  print(a_grey[i[1]][i[0]])
+                  # print(a_grey[i[1]][i[0]])
                   if(a_grey[i[1]][i[0]] > 25):
                      cv2.circle(a_grey, (i[0], i[1]), 1, (0,100,100), 3)
                      cv2.circle(a_grey, (i[0], i[1]), i[2], (255,0,255), 3)
@@ -421,12 +422,12 @@ class ControlTask:
                      theta = math.asin(horizontal_dist/dist_ball)
                      dist_center_ball = math.sqrt((dist_ball * dist_ball) + (3 * 3) - 2 * dist_ball * 3 * theta)
                      theta_center = math.asin((horizontal_dist - 1)/dist_center_ball)
-                     print("dist: ", i[2], " pixel")
-                     print("dist: ", dist_ball, " cm")
-                     print("hor dist: ", horizontal_dist, " cm")
-                     print("angle with camera: ", theta*180/math.pi)
-                     print("center dist: ", dist_center_ball, " cm")
-                     print("angle with center: ", theta_center*180/math.pi)
+                     # print("dist: ", i[2], " pixel")
+                     # print("dist: ", dist_ball, " cm")
+                     # print("hor dist: ", horizontal_dist, " cm")
+                     # print("angle with camera: ", theta*180/math.pi)
+                     # print("center dist: ", dist_center_ball, " cm")
+                     # print("angle with center: ", theta_center*180/math.pi)
                      x_ball, y_ball = self.convert(dist_center_ball, theta_center)
                      if dist_ball < 100:
                         self.addBall(x_ball, y_ball)
@@ -624,6 +625,8 @@ class ControlTask:
          self.waitForUser()
       elif(self.next_state == State.BASE_NOT_FOUND):
          self.baseNotFound()
+      elif(self.next_state == State.ROTATE_TEST):
+         self.rotateTest()
 
       time.sleep(0.05)
 
@@ -1219,8 +1222,8 @@ class ControlTask:
          last_dist = self.peripherals.getFrontDistance()
       d2 = last_dist*math.sin(math.pi/12)
       d3 = last_dist*math.cos(math.pi/12)
-      print(d2)
-      print(d3)
+      # print(d2)
+      # print(d3)
       d4 = 12 - d2
       if(d4 > 0):
          theta = math.atan(d4/d3)
@@ -1237,21 +1240,23 @@ class ControlTask:
    def approachBall(self):
       if(len(self.balls) == 0):
          return
+      
       ball = self.balls[0]
       angle = math.atan(ball[0]/ball[1])
-
+      angle = abs(angle)
       angle_sum = 0
+      
       time.sleep(1)
-      while(ball[0] > 2 or ball[0] < -2):
+      while(ball[0] > 1 or ball[0] < -1):
          print(f"ball zero: {ball[0]}")
          self.is_rotating = True
          if(ball[0] > 0):
-            self.peripherals.rotate(1, 0.01, 0.3)
+            self.peripherals.rotate(1, 0.01, 0.25)
          else:
-            self.peripherals.rotate(0, 0.01, 0.3)
+            self.peripherals.rotate(0, 0.01, 0.25)
          self.is_rotating = False
          angle_sum += 0.01
-         if(angle < (angle_sum - (angle_sum/20))):
+         if(angle_sum > (angle - (angle/10))):
             break
          time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)
@@ -1316,7 +1321,7 @@ class ControlTask:
                ball[0] = x
                ball[1] = y
                dist_calc = dist(x,y, 0, 0)
-               print(dist_calc)
+               # print(dist_calc)
                ball[2] = dist_calc*10.5/50 - 7
                ball[3] = 0
                return
@@ -1334,3 +1339,34 @@ class ControlTask:
          ball[1] -= delta_y
 
       # self.balls.sort(key=closest())
+
+   def rotateTest(self):
+      print("Entering rotateTest")
+      
+      if(len(self.balls) == 0):
+         print("ERROR: No ball detected")
+         return
+      
+      ball = self.balls[0]
+      angle = math.atan(ball[0]/ball[1])
+      angle = abs(angle)
+      angle_sum = 0
+
+      time.sleep(1)
+      while(ball[0] > 1 or ball[0] < -1):
+         print(f"ball zero: {ball[0]}")
+         self.is_rotating = True
+         if(ball[0] > 0):
+            self.peripherals.rotate(1, 0.01, 0.25)
+         else:
+            self.peripherals.rotate(0, 0.01, 0.25)
+         self.is_rotating = False
+         angle_sum += 0.01
+         if(angle_sum > (angle - (angle/10))):
+            break
+         time.sleep(0.1)
+
+      print(self.balls)
+      self.balls = []
+      print("Restarting test algorithm")
+      time.sleep(10)
