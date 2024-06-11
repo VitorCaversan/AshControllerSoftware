@@ -9,8 +9,8 @@ import cv2
 from picamera2 import Picamera2, Preview
 import numpy as np
 
-IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 20
-IR_CENTER_THRESHOLD_IN_PIXELS = 15
+IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 0
+IR_CENTER_THRESHOLD_IN_PIXELS = 20
 
 WHEEL_DIAMETER_IN_M = 0.068
 APPROX_PI = 3.141592
@@ -395,6 +395,8 @@ class ControlTask:
                      self.time_findIR = time.time()
                      cv2.circle(a_grey_up, (ball[0], ball[1]), 1, (0,100,100), 3)
                      cv2.circle(a_grey_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
+            elif ((time.time() - self.time_findIR) > 2):
+               self.baseIRPosition = [0, 0]
             # cv2.imshow("iR", a_grey_up) 
             # cv2.waitKey(1)
             if(time.time() - self.time_findIR > 10):
@@ -783,10 +785,15 @@ class ControlTask:
       # Do
       self.findIR()
 
+      print(f"ir x: {self.baseIRPosition[0]}, ir y: {self.baseIRPosition[1]}")
       if abs(self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) > IR_CENTER_THRESHOLD_IN_PIXELS:
+         print("will rotate")
          self.rotateToCenterBase()
+      else:
+         print("will set forward")
+         self.peripherals.driveRobotForward(0.4, 0, 0)
 
-      self.peripherals.driveRobotForward(0.4, 0, 0)
+      time.sleep(0.5)
 
       # Exit
       if (self.baseIRPosition[1] < 10):
@@ -1208,6 +1215,8 @@ class ControlTask:
       elif ((self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < -IR_CENTER_THRESHOLD_IN_PIXELS):
          self.peripherals.rotate(0, 0.05, 0.2)
       self.is_rotating = False
+
+      return
 
    # Improve this
    def moveAroundObject(self):
