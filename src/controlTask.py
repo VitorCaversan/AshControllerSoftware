@@ -9,9 +9,11 @@ import cv2
 from picamera2 import Picamera2, Preview
 import numpy as np
 
-IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 0
+IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 240
 IR_CENTER_THRESHOLD_IN_PIXELS = 20
 
+PWM_FOR_MAX_SPEED = 0.8
+PWM_FOR_MIN_SPEED = 0.2
 WHEEL_DIAMETER_IN_M = 0.068
 APPROX_PI = 3.141592
 MAX_MOTOR_RMP = 100
@@ -191,62 +193,6 @@ class ControlTask:
       # print(f"Sensor distance: {str(9.0)}, \nsteps: {str(self.peripherals.getLeftEncoderSteps())}, \ncollected balls: {str(self.peripherals.getCollectedBallsQty())}")
       # print(f"Ads value: {str(self.peripherals.getLowerBatteryADCVal())}, voltage: {str(self.peripherals.getLowerBatteryLvl())}\n")
 
-      # if self.peripherals.isHallEffectSensActive():
-      #    self.peripherals.stopRobot()
-      #    self.peripherals.setVacuumMotorPWM(0.0)
-      #    self.peripherals.resetEncoders()
-      #    return
-
-      # print("Batt ", self.peripherals.getLowerBatteryLvl())
-      # self.peripherals.rotate(1, 1)
-      # print("ligando aspirador")
-      # self.peripherals.setVacuumMotorPWM(0.1)
-      # time.sleep(0.5)
-      # self.peripherals.setVacuumMotorPWM(0.3)
-      # # print("Subindo rampa velocidade")
-      # self.peripherals.driveRobotForward(0.1, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotForward(0.2, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotForward(0.3, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
-      # # self.peripherals.driveRobotForward(0.5, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # # time.sleep(1)
-      # # print("parado")
-      # # time.sleep(3)
-      # self.peripherals.driveRobotForward(0.0, 0, 0)
-      # # # self.peripherals.controlMotorsPWM()
-      # # print("desliango aspirador")
-      # # self.peripherals.setVacuumMotorPWM(0.1)
-      # # time.sleep(0.5)
-      # self.peripherals.setVacuumMotorPWM(0.0)
-      # # time.sleep(0.5)
-      # # print("movendo para tras")
-      # self.peripherals.driveRobotBackward(0.1, 0, 0)
-      # # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotBackward(0.2, 0, 0)
-      # # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotBackward(0.3, 0, 0)
-      # # # self.peripherals.controlMotorsPWM()
-      # time.sleep(0.5)
-      # self.peripherals.driveRobotBackward(0.0, 0, 0)
-      # self.peripherals.driveRobotBackward(0.5, 0, 0)
-      # # self.peripherals.controlMotorsPWM()
-      # time.sleep(1)
-      # time.sleep(3)
-      
-      # self.peripherals.controlMotorsPWM()
-      # self.peripherals.rotate(0, 3.1415, 0.5)
-      # self.peripherals.stopRobot()
-      # print("Batt ", self.peripherals.getLowerBatteryLvl())
-      # self.peripherals.rotate(0, 1)
-
       self.fsmInit()
 
       self.actual_state = State.SEARCHING_BALLS
@@ -254,48 +200,11 @@ class ControlTask:
       self.last_state = State.SEARCHING_BALLS
 
       while(True):
-         print(f"Estado atual {self.actual_state}")
-         print(f"Próximo estado {self.next_state}")
+         # print(f"Estado atual {self.actual_state}")
+         # print(f"Próximo estado {self.next_state}")
          self.fsmRun()
          time.sleep(0.01)
-      # print("FINALIZADO")
 
-      # adsCtrlRate = 30.0 / 100.0
-      # if adsCtrlRate < 0.0:
-      #    adsCtrlRate = 0.0
-      # elif adsCtrlRate > 1.0:
-      #    adsCtrlRate = 1.0
-
-      # if 9.0 < 0.10:
-      #    self.peripherals.driveRobotBackward(speed=(adsCtrlRate*0.3), curveLeftRate=0.0, curveRightRate=0.3)
-      #    self.peripherals.setVacuumMotorPWM(0.1)
-      # elif 9.0 < 0.20:
-      #    self.peripherals.stopRobot()
-      #    self.peripherals.setVacuumMotorPWM(0.0)
-      #    self.peripherals.resetEncoders()
-      # elif 9.0 < 0.30:
-      #    self.peripherals.driveRobotForward(speed=(adsCtrlRate*0.3), curveLeftRate=0.0, curveRightRate=0.3)
-      #    self.peripherals.setVacuumMotorPWM(0.5)
-      # else:
-      #    self.peripherals.driveRobotForward(speed=(adsCtrlRate*0.8), curveLeftRate=0.0, curveRightRate=0.8)
-      #    self.peripherals.setVacuumMotorPWM(0.8)
-
-      # self.peripherals.controlMotorsPWM()
-      # self.peripherals.updatePositionOdometry()
-
-      ### bluetooth periodic message update ###
-      # print("Before updateBtPeriodicMsg")
-      # self.updateBtPeriodicMsg()
-
-      # if self.peripherals.isBallStuck():
-      #    self.btPeriodicMsg["robot_error"] = "ball_stuck"
-      # elif 30.0 < 25.0:
-      #    self.btPeriodicMsg["robot_error"] = "low_battery"
-      # else:
-      #    self.btPeriodicMsg["robot_error"] = ""
-
-      print("Before put")
-      
    def run(self):
       # 
       while(1):
@@ -391,7 +300,7 @@ class ControlTask:
                for ball in ir_balls[0, :]:
                   print(f"IR ball detected at: {ball[0]}, {ball[1]}")
                   if ir_binary_img[ball[1]][ball[0]] > 150:
-                     self.baseIRPosition = [ball[0], ball[1]]
+                     self.baseIRPosition = [(ball[0] - 440), ball[1]]
                      self.time_findIR = time.time()
                      cv2.circle(a_grey_up, (ball[0], ball[1]), 1, (0,100,100), 3)
                      cv2.circle(a_grey_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
@@ -760,7 +669,7 @@ class ControlTask:
       self.is_rotating = True
       print(f"base position: {self.baseIRPosition}")
       if self.baseIRPosition[0] == 0:
-         self.peripherals.rotate(self.lastRotationDir, 0.05, 0.3)
+         self.peripherals.rotate(self.lastRotationDir, 0.02, 0.3)
          time.sleep(0.2)
       self.is_rotating = False
 
@@ -1129,8 +1038,9 @@ class ControlTask:
       self.is_rotating = False
 
       # Moves backwards in a straight line for time_to_go seconds
-      desired_dist_to_go_bkwr = 0.15
+      desired_dist_to_go_bkwr = 0.075
       desired_pwm = 0.3
+      desired_pwm = (desired_pwm * (PWM_FOR_MAX_SPEED - PWM_FOR_MIN_SPEED)) + PWM_FOR_MIN_SPEED
       m_per_s = ((MAX_MOTOR_RMP * desired_pwm) * WHEEL_CIRCUMFERENCE_IN_M) / 60
       time_to_go = desired_dist_to_go_bkwr / m_per_s
       self.peripherals.driveRobotBackward(desired_pwm, 0, 0)
@@ -1211,9 +1121,9 @@ class ControlTask:
    def rotateToCenterBase(self):
       self.is_rotating = True
       if ((self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) > IR_CENTER_THRESHOLD_IN_PIXELS):
-         self.peripherals.rotate(1, 0.05, 0.2)
+         self.peripherals.rotate(1, 0.02, 0.2)
       elif ((self.baseIRPosition[0] + IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS) < -IR_CENTER_THRESHOLD_IN_PIXELS):
-         self.peripherals.rotate(0, 0.05, 0.2)
+         self.peripherals.rotate(0, 0.02, 0.2)
       self.is_rotating = False
 
       return

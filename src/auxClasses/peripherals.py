@@ -257,9 +257,9 @@ class Peripherals:
          self.leftMotor.backward(speed=rebasedSpeed)
          while (abs(self.encoderRight.steps - initialSteps) < stepsToTurn):
             #print(rebasedSpeed)
-            print(f"Steps rotation right: {abs(self.encoderRight.steps - initialSteps)} / {stepsToTurn}")
-            print(f"Total steps right: {self.encoderRight.steps}")
-            print(f"Initial steps right: {initialSteps}")
+            # print(f"Steps rotation right: {abs(self.encoderRight.steps - initialSteps)} / {stepsToTurn}")
+            # print(f"Total steps right: {self.encoderRight.steps}")
+            # print(f"Initial steps right: {initialSteps}")
             time.sleep(0.01)
       elif (direction == 1):
          initialSteps = self.encoderLeft.steps
@@ -267,9 +267,9 @@ class Peripherals:
          self.rightMotor.backward(speed=rebasedSpeed)
          while (abs(self.encoderLeft.steps - initialSteps) < stepsToTurn):
             #print(rebasedSpeed)
-            print(f"Steps rotation left: {abs(self.encoderLeft.steps - initialSteps)} / {stepsToTurn}")
-            print(f"Total steps left: {self.encoderLeft.steps}")
-            print(f"Initial steps left: {initialSteps}")
+            # print(f"Steps rotation left: {abs(self.encoderLeft.steps - initialSteps)} / {stepsToTurn}")
+            # print(f"Total steps left: {self.encoderLeft.steps}")
+            # print(f"Initial steps left: {initialSteps}")
             time.sleep(0.01)
       else:
          print("Invalid direction")
