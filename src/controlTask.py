@@ -9,7 +9,7 @@ import cv2
 from picamera2 import Picamera2, Preview
 import numpy as np
 
-IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 240
+IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 200
 IR_CENTER_THRESHOLD_IN_PIXELS = 20
 IR_BALL_HEIGHT_FOR_BASE_CONNECT = 120
 
@@ -120,7 +120,7 @@ class ControlTask:
       self.cam = Picamera2(0) # Right camera
       self.cam1 = Picamera2(1) # Left camera
       cfg = self.cam.create_preview_configuration(main={'size': (960, 700)})
-      cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
+      cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 700)})
       self.cam.configure(cfg)
       self.cam1.configure(cfg1)
       # cam.set_controls({"FrameRate": 5})
@@ -204,6 +204,7 @@ class ControlTask:
          # print(f"Estado atual {self.actual_state}")
          # print(f"Próximo estado {self.next_state}")
          self.fsmRun()
+         # self.rotateTest()
          time.sleep(0.01)
 
    def run(self):
@@ -298,7 +299,7 @@ class ControlTask:
             (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 200, 255,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
-            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=35, minRadius=5, maxRadius=25)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=20, minRadius=5, maxRadius=25)
 
             if ir_balls is not None:
                ir_balls = np.uint16(np.around(ir_balls))
@@ -313,8 +314,8 @@ class ControlTask:
                self.baseIRPosition = [0, 0]
             
             # cv2.imshow("iR", ir_gray_up)
-            # cv2.imwrite('img.png', ir_gray_up)
-            # cv2.waitKey(1)
+            cv2.imwrite('img_ir.png', ir_gray_up)
+            cv2.waitKey(1)
             if(time.time() - self.time_findIR > 10):
                self.base_not_found = True
                self.search_for_IR = False
@@ -323,7 +324,7 @@ class ControlTask:
          a_grey = cv2.normalize(a_grey, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
          
          a_blur = cv2.GaussianBlur(a_grey, (17, 17), 0)
-         circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=50, maxRadius=70)
+         circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=25, maxRadius=70)
          # print(circles)
          if circles is not None:
             circles = np.uint16(np.around(circles))
@@ -335,17 +336,17 @@ class ControlTask:
                      cv2.circle(a_grey, (i[0], i[1]), i[2], (255,0,255), 3)
 
                      dist_ball = pow(i[2], -1.05)
-                     dist_ball *= 2495
+                     dist_ball *= 1750
                      horizontal_dist = 2*(i[0] - 480)/i[2]
                      theta = math.asin(horizontal_dist/dist_ball)
                      dist_center_ball = math.sqrt((dist_ball * dist_ball) + (3 * 3) - 2 * dist_ball * 3 * theta)
                      theta_center = math.asin((horizontal_dist - 1)/dist_center_ball)
-                     # print("dist: ", i[2], " pixel")
-                     # print("dist: ", dist_ball, " cm")
-                     # print("hor dist: ", horizontal_dist, " cm")
-                     # print("angle with camera: ", theta*180/math.pi)
-                     # print("center dist: ", dist_center_ball, " cm")
-                     # print("angle with center: ", theta_center*180/math.pi)
+                     print("dist: ", i[2], " pixel")
+                     print("dist: ", dist_ball, " cm")
+                     print("hor dist: ", horizontal_dist, " cm")
+                     print("angle with camera: ", theta*180/math.pi)
+                     print("center dist: ", dist_center_ball, " cm")
+                     print("angle with center: ", theta_center*180/math.pi)
                      x_ball, y_ball = self.convert(dist_center_ball, theta_center)
                      if dist_ball < 100:
                         self.addBall(x_ball, y_ball)
@@ -1176,7 +1177,7 @@ class ControlTask:
       # ball[0] = ball[0] + 3
       
       time.sleep(1)
-      while(ball[0] - 2 > 1 or ball[0] < -1):
+      while(ball[0] > 1 or ball[0] < -1):
          print(f"ball zero: {ball[0]}")
          self.is_rotating = True
          if(ball[0] > 0):
@@ -1185,7 +1186,9 @@ class ControlTask:
             self.peripherals.rotate(0, 0.01, 0.25)
          self.is_rotating = False
          angle_sum += 0.01
-         if(angle_sum > (angle - (angle/10))):
+         if ((angle_sum > (angle - (angle/10))) and ball[0] < -1):
+            break
+         if ((angle_sum > (angle - (angle/8))) and ball[0] > 1):
             break
          time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)
@@ -1270,10 +1273,10 @@ class ControlTask:
       # self.balls.sort(key=closest())
 
    def rotateTest(self):
-      print("Entering rotateTest")
+      # print("Entering rotateTest")
       
       if(len(self.balls) == 0):
-         print("ERROR: No ball detected")
+         # print("ERROR: No ball detected")
          return
       
       ball = self.balls[0]
@@ -1282,13 +1285,13 @@ class ControlTask:
       # angle_sum = 0
       angle = 0
 
-      print(
-         f"""
-         Camera trace
-         Coord: {ball}
-         Angle: {angle}
-         """
-      )
+      # print(
+      #    f"""
+      #    Camera trace
+      #    Coord: {ball}
+      #    Angle: {angle}
+      #    """
+      # )
 
       # time.sleep(1)
       # while(ball[0] > 1 or ball[0] < -1):
