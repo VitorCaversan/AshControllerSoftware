@@ -131,6 +131,7 @@ class ControlTask:
       self.lastRotationDir = 0
       self.lastTimeFarFromBase = 0.0
       self.starting_err_time = 0.0
+      self.rotat_ctr_since_finding_wall = 0
       self.leftDistQueue = CyclicQueue(LEFT_DIST_QUEUE_SIZE)
 
       self.cam.start()
@@ -482,12 +483,12 @@ class ControlTask:
       self.is_parallel_wall = self.peripherals.getLeftDistance() < DIST_TOO_CLOSE_IN_CM
       self.base_found_camera = False         # Needs IR detection
       # self.base_not_found = False
-      self.base_connected = False            # IDK
+      self.base_connected = self.peripherals.isHallEffectSensActive()
       self.front_ir_detected_but_not_end = self.peripherals.isBallStuck()
       self.robot_running_encoder = (self.peripherals.getLeftEncoderSteps() - self.encoder_left_last) != 0 and (self.peripherals.getRightEncoderSteps() - self.encoder_right_last) != 0
       self.robot_running_imu = True         # Needs IMU
-      self.resume_command_rcvd = False       # IDK
-      self.pause_command_rcvd = False        # IDK
+      # self.resume_command_rcvd = False       # IDK
+      # self.pause_command_rcvd = False        # IDK
       self.balls_colected = self.peripherals.getCollectedBallsQty()
       self.encoder_left_last = self.peripherals.getLeftEncoderSteps()
       self.encoder_right_last = self.peripherals.getRightEncoderSteps()
@@ -543,7 +544,7 @@ class ControlTask:
 
    def init(self):
       # Entry
-      if(self.actual_state == State.INIT):
+      if(self.actual_state != State.INIT):
          self.actual_state = self.next_state
       
       # Exit
@@ -554,7 +555,7 @@ class ControlTask:
          self.next_state = State.CONNECTED_TO_BASE
          self.last_state = self.actual_state
       elif(self.base_connected == False):
-         self.next_state = State.SEARCHING_BASE_WALL
+         self.next_state = State.FINDING_WALL
          self.last_state = self.actual_state
       
    def searchingBaseFollowingWall(self):
@@ -571,13 +572,20 @@ class ControlTask:
       # Exit
       if(self.baseIRPosition[0] != 0):
          self.next_state = State.GOING_AFTER_BASE_CAM
-         self.leftDistQueue.reset()
          self.last_state = self.actual_state
+         self.leftDistQueue.reset()
+         self.rotat_ctr_since_finding_wall = 0
+      elif(self.rotat_ctr_since_finding_wall > 4):
+         self.next_state = State.BASE_NOT_FOUND
+         self.last_state = self.actual_state
+         self.leftDistQueue.reset()
+         self.rotat_ctr_since_finding_wall = 0
       elif(self.close_wall == True):
          self.lastRotationDir = 1
          self.next_state      = State.ROTATING_TILL_PARALLEL
+         self.last_state      = self.actual_state
          self.leftDistQueue.reset()
-         self.last_state = self.actual_state
+         self.rotat_ctr_since_finding_wall += 1
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
@@ -637,18 +645,17 @@ class ControlTask:
       if (self.peripherals.getBackDistance() > 2):
          self.lastTimeFarFromBase = time.time()
       
-      if (self.peripherals.isHallEffectSensActive() or ((time.time() - self.lastTimeFarFromBase > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
+      if (self.base_connected or ((time.time() - self.lastTimeFarFromBase > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
          self.peripherals.stopRobot()
          self.peripherals.setVacuumMotorPWM(0.0)
-         self.peripherals.resetEncoders()
-         self.base_connected = True
 
       # Exit
       if(self.base_connected == True):
-         self.next_state = State.CONNECTED_TO_BASE
-         self.baseIRPosition = [0, 0]
+         self.next_state          = State.CONNECTED_TO_BASE
+         self.last_state          = self.actual_state
+         self.baseIRPosition      = [0, 0]
          self.lastTimeFarFromBase = 0.0
-         self.last_state = self.actual_state
+         self.opperation_complete = True
          self.status = ""
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
@@ -679,7 +686,7 @@ class ControlTask:
          self.last_state = self.actual_state
       elif(self.base_not_found == True):
          self.base_not_found = False
-         self.next_state = State.BASE_NOT_FOUND
+         self.next_state = State.FINDING_WALL
          self.last_state = self.actual_state
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
@@ -713,7 +720,7 @@ class ControlTask:
          self.status = ""
       elif(self.base_not_found == True):
          self.base_not_found = False
-         self.next_state = State.BASE_NOT_FOUND
+         self.next_state = State.FINDING_WALL
          self.last_state = self.actual_state
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
@@ -738,6 +745,7 @@ class ControlTask:
       elif(self.opperation_complete == True):
          self.next_state = State.WAITING_FOR_CMD_OR_SCHEDULE
          self.last_state = self.actual_state
+         self.opperation_complete = False
    
    def waitingForCharger(self):
       # Entry
@@ -784,6 +792,7 @@ class ControlTask:
       if(self.actual_state != State.WAITING_FOR_CMD_OR_SCHEDULE):
          self.disablePeripherals()
          self.actual_state = self.next_state
+         self.status = ""
       
       # Do
 
@@ -822,7 +831,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
-         self.status = ""
+         self.pause_command_rcvd = False
       elif(self.close_wall == True):
          self.lastRotationDir = 1
          self.next_state      = State.ROTATING_TILL_PARALLEL
@@ -856,6 +865,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
+         self.pause_command_rcvd = False
 
    def avoidingStaticObject(self):
       if(self.actual_state != State.AVOIDING_STATIC_OBJECT):
@@ -876,6 +886,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
+         self.pause_command_rcvd = False
    
    def robotPaused(self):
       if(self.actual_state != State.PAUSED):
@@ -889,6 +900,7 @@ class ControlTask:
       if(self.resume_command_rcvd == True):
          self.next_state = self.last_state
          self.last_state = self.actual_state
+         self.resume_command_rcvd = False
          self.status = ""
    
    def catchingBall(self):
@@ -918,7 +930,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
-         self.status = ""
+         self.pause_command_rcvd = False
       elif(self.front_ir_detected_but_not_end == True):
          self.next_state = State.BALL_STUCK
          self.last_state = self.actual_state
@@ -950,9 +962,15 @@ class ControlTask:
       # Do
       
       # Exit
+      if (self.start_command_rcvd == True):
+         self.next_state = State.INIT
+         self.last_state = self.actual_state
+         # start_command_rcvd must remain True so that the robot can pass through the
+         # WAITING_FOR_CMD_OR_SCHEDULE state with only 1 click of the start button
+         # self.start_command_rcvd = False
    
    def robotStuck(self):
-      if(self.actual_state != State.BALL_STUCK):
+      if(self.actual_state != State.ROBOT_STUCK):
          self.stopMotors()
          self.starting_err_time = time.time()
          self.actual_state = self.next_state
@@ -981,7 +999,7 @@ class ControlTask:
       # Exit
       if(time.time() - self.starting_err_time >= 1):
          self.sendWarningUser("")
-         self.next_state = State.SEARCHING_BASE_WALL
+         self.next_state = State.PAUSED
          self.last_state = self.actual_state
 
    def findWall(self):
