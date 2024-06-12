@@ -11,6 +11,7 @@ import numpy as np
 
 IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 240
 IR_CENTER_THRESHOLD_IN_PIXELS = 20
+IR_BALL_HEIGHT_FOR_BASE_CONNECT = 120
 
 PWM_FOR_MAX_SPEED = 0.8
 PWM_FOR_MIN_SPEED = 0.2
@@ -116,9 +117,9 @@ class ControlTask:
       self.status = ""
       self.balls = []
       self.baseIRPosition = [0, 0]
-      self.cam = Picamera2(0)
-      self.cam1 = Picamera2(1)
-      cfg = self.cam.create_preview_configuration(main={'size': (960, 540)})
+      self.cam = Picamera2(0) # Right camera
+      self.cam1 = Picamera2(1) # Left camera
+      cfg = self.cam.create_preview_configuration(main={'size': (960, 700)})
       cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
       self.cam.configure(cfg)
       self.cam1.configure(cfg1)
@@ -275,22 +276,26 @@ class ControlTask:
       while True:
          a = self.cam1.capture_array("main")
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
+         a = cv2.rotate(a, cv2.ROTATE_180)
          # a = cv2.resize(a, (960, 540))
 
-         a = cv2.rotate(a, cv2.ROTATE_180)
+         infraredImg = self.cam.capture_array("main")
+         infraredImg = cv2.cvtColor(infraredImg, cv2.COLOR_BGR2RGB)
+         infraredImg = cv2.rotate(infraredImg, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
 
-         if a is None:
+         if (a is None) or (infraredImg is None):
             continue
 
          a_grey = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
+         ir_gray = cv2.cvtColor(infraredImg, cv2.COLOR_RGB2GRAY)
          
          # Creates a binary image for the infrared detection. Blurrs the image and finds the circles
          # using the HoughCircles method from OpenCV
          if(self.search_for_IR == True):
-            a_grey_up = a_grey[:300, :]
-            (a_t, ir_binary_img) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+            ir_gray_up = ir_gray[:400, :]
+            (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 200, 255,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
             ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=35, minRadius=5, maxRadius=25)
@@ -302,11 +307,13 @@ class ControlTask:
                   if ir_binary_img[ball[1]][ball[0]] > 150:
                      self.baseIRPosition = [(ball[0] - 440), ball[1]]
                      self.time_findIR = time.time()
-                     cv2.circle(a_grey_up, (ball[0], ball[1]), 1, (0,100,100), 3)
-                     cv2.circle(a_grey_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
+                     cv2.circle(ir_gray_up, (ball[0], ball[1]), 1, (0,100,100), 3)
+                     cv2.circle(ir_gray_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
             elif ((time.time() - self.time_findIR) > 2):
                self.baseIRPosition = [0, 0]
-            # cv2.imshow("iR", a_grey_up) 
+            
+            # cv2.imshow("iR", ir_gray_up)
+            # cv2.imwrite('img.png', ir_gray_up)
             # cv2.waitKey(1)
             if(time.time() - self.time_findIR > 10):
                self.base_not_found = True
@@ -706,7 +713,7 @@ class ControlTask:
       time.sleep(0.5)
 
       # Exit
-      if (self.baseIRPosition[1] < 10):
+      if (self.baseIRPosition[1] < IR_BALL_HEIGHT_FOR_BASE_CONNECT):
          self.peripherals.driveRobotForward(0.0, 0, 0)
          self.next_state = State.CONNECTING_TO_BASE
          self.search_for_IR = False
@@ -824,11 +831,11 @@ class ControlTask:
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
          self.status = ""
-      elif(self.close_wall == True):
-         self.lastRotationDir = 1
-         self.next_state      = State.ROTATING_TILL_PARALLEL
-         self.last_state      = self.actual_state
-         self.status = ""
+      # elif(self.close_wall == True):
+      #    self.lastRotationDir = 1
+      #    self.next_state      = State.ROTATING_TILL_PARALLEL
+      #    self.last_state      = self.actual_state
+      #    self.status = ""
       elif(self.static_object_detected == True):
          self.next_state = State.AVOIDING_STATIC_OBJECT
          self.last_state = self.actual_state
@@ -1165,9 +1172,11 @@ class ControlTask:
       angle = math.atan(ball[0]/ball[1])
       angle = abs(angle)
       angle_sum = 0
+
+      # ball[0] = ball[0] + 3
       
       time.sleep(1)
-      while(ball[0] > 1 or ball[0] < -1):
+      while(ball[0] - 2 > 1 or ball[0] < -1):
          print(f"ball zero: {ball[0]}")
          self.is_rotating = True
          if(ball[0] > 0):
@@ -1204,7 +1213,7 @@ class ControlTask:
       while(ball[1] > -2):
          self.peripherals.driveRobotForward(0.3, 0, 0)
          self.peripherals.setVacuumMotorPWM(0.3)
-         time.sleep(0.01)
+         time.sleep(0.5)
       
       self.peripherals.driveRobotForward(0.0, 0, 0)
       time.sleep(0.5)
