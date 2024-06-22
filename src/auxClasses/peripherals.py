@@ -26,6 +26,8 @@ MAX_SPEED_IN_STEPS_PER_S = (MAX_MOTOR_RMP * MOTOR_STEPS_PER_TURN) / 60
 WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * WHEEL_DIAMETER_IN_M
 MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / WHEEL_CIRCUMFERENCE_IN_M
 
+MAX_PWM_JUMP = 0.15
+
 # A class that contains all the peripherals of the robot
 # It offers all the necessary functions to interact with the peripherals, such as reading sensors,
 # controlling motors, etc.
@@ -39,9 +41,9 @@ class Peripherals:
       self.vacuumMotor.off()
       self.encoderLeft.close()
       self.encoderRight.close()
-      self.leftDistSens.close()
+      # self.leftDistSens.close()
       self.frontDistSens.close()
-      self.rightDistSens.close()
+      # self.rightDistSens.close()
       self.backDistSens.close()
       # self.servo.detach()
       self.tubeSensMngr.close()
@@ -52,9 +54,9 @@ class Peripherals:
       self.rightMotor       = Motor(21, 20)
       self.encoderLeft      = RotaryEncoder(a=6, b=5, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
-      self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-      self.frontDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
-      self.rightDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+      # self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
+      self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+      # self.rightDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15) # front was (echo=9, trigger=13, threshold_distance=0.15)
       self.backDistSens    = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
       self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
       self.robotOdom        = EncoderSensorMnger()
@@ -69,6 +71,8 @@ class Peripherals:
       self.rightMotorTargetStepsPerS: float = 0
       self.currLeftMotorPWM:  float = 0
       self.currRightMotorPWM: float = 0
+      self.targetLeftMotorPWM:  float = 0
+      self.targetRightMotorPWM: float = 0
       self.lastLeftMotorSteps:  int = 0
       self.lastRightMotorSteps: int = 0
       self.lastStepsReadTime: float = 0
@@ -96,13 +100,13 @@ class Peripherals:
       return self.rightMotorTargetStepsPerS
    
    def getLeftDistance(self) -> float:
-      return self.leftDistSens.distance * 100.0
+      return 100.0#self.leftDistSens.distance * 100.0
    
    def getFrontDistance(self) -> float:
       return self.frontDistSens.distance * 100.0
    
    def getRightDistance(self) -> float:
-      return self.rightDistSens.distance * 100.0
+      return 50.0 # self.rightDistSens.distance * 100.0
    
    def getBackDistance(self) -> float:
       return self.backDistSens.distance * 100.0
@@ -119,6 +123,22 @@ class Peripherals:
    def controlMotorsPWM(self):
       currTime = time.time()
       timeDiff = currTime - self.lastStepsReadTime
+
+      if (abs(self.targetLeftMotorPWM - self.currLeftMotorPWM) > MAX_PWM_JUMP):
+         if (self.targetLeftMotorPWM > self.currLeftMotorPWM):
+            self.currLeftMotorPWM += MAX_PWM_JUMP
+         else:
+            self.currLeftMotorPWM -= MAX_PWM_JUMP
+      else:
+         self.currLeftMotorPWM = self.targetLeftMotorPWM
+
+      if (abs(self.targetRightMotorPWM - self.currRightMotorPWM) > MAX_PWM_JUMP):
+         if (self.targetRightMotorPWM > self.currRightMotorPWM):
+            self.currRightMotorPWM += MAX_PWM_JUMP
+         else:
+            self.currRightMotorPWM -= MAX_PWM_JUMP
+      else:
+         self.currRightMotorPWM = self.targetRightMotorPWM
 
       if self.currLeftMotorPWM > 0:
          if self.robotDirection == Direction.FORWARD:
@@ -198,8 +218,8 @@ class Peripherals:
          self.leftMotorTargetStepsPerS  = 0
          self.rightMotorTargetStepsPerS = 0
       
-      self.currLeftMotorPWM  = speed
-      self.currRightMotorPWM = speed
+      self.targetLeftMotorPWM  = speed
+      self.targetRightMotorPWM = speed
       self.robotDirection = Direction.FORWARD
 
    # Sets the target speed for the robot to move backward
@@ -211,6 +231,9 @@ class Peripherals:
          print("Invalid speed values")
          return
       
+      self.stopRobot()
+      time.sleep(0.2)
+
       targetStepsPerS = 0
       if (speed < PWM_FOR_MIN_SPEED):
          targetStepsPerS = 0
@@ -232,8 +255,8 @@ class Peripherals:
          self.leftMotorTargetStepsPerS  = 0
          self.rightMotorTargetStepsPerS = 0
 
-      self.currLeftMotorPWM  = speed
-      self.currRightMotorPWM = speed
+      self.targetLeftMotorPWM  = speed
+      self.targetRightMotorPWM = speed
       self.robotDirection = Direction.BACKWARD
 
    # Rotates the robot in its own axis, given an direction and an agle in radians
@@ -249,7 +272,7 @@ class Peripherals:
       stepsToTurn = archSize * MOTOR_STEPS_PER_M
 
       self.stopRobot()
-      time.sleep(0.1)
+      time.sleep(0.2)
 
       if (direction == 0):
          initialSteps = self.encoderRight.steps
@@ -285,6 +308,8 @@ class Peripherals:
       self.rightMotorTargetStepsPerS = 0
       self.currLeftMotorPWM  = 0
       self.currRightMotorPWM = 0
+      self.targetLeftMotorPWM  = 0
+      self.targetRightMotorPWM = 0
       self.leftMotor.stop()
       self.rightMotor.stop()
 
