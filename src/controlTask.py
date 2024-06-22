@@ -181,6 +181,10 @@ class ControlTask:
                   self.resume_command_rcvd = True
                elif msg == "return_to_base":
                   self.stop_command_rcvd = True
+               elif msg == "start":
+                  self.start_command_rcvd = True
+               elif msg == "connection_lost":
+                  self.pause_command_rcvd = True
 
                self.ctrlMsgQueue.task_done()
          except:
@@ -887,7 +891,7 @@ class ControlTask:
       # Do
       
       # Exit
-      if(self.resume_command_rcvd == True):
+      if((self.resume_command_rcvd == True) or (self.start_command_rcvd == True)):
          self.next_state = self.last_state
          self.last_state = self.actual_state
          self.status = ""
