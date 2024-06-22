@@ -9,8 +9,9 @@ import cv2
 from picamera2 import Picamera2, Preview
 import numpy as np
 
-IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 240
+IR_LED_DIST_FROM_BASE_CENTER_IN_PIXELS = 200
 IR_CENTER_THRESHOLD_IN_PIXELS = 20
+IR_BALL_HEIGHT_FOR_BASE_CONNECT = 120
 
 PWM_FOR_MAX_SPEED = 0.8
 PWM_FOR_MIN_SPEED = 0.2
@@ -116,10 +117,10 @@ class ControlTask:
       self.status = ""
       self.balls = []
       self.baseIRPosition = [0, 0]
-      self.cam = Picamera2(0)
-      self.cam1 = Picamera2(1)
-      cfg = self.cam.create_preview_configuration(main={'size': (960, 540)})
-      cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 540)})
+      self.cam = Picamera2(0) # Right camera
+      self.cam1 = Picamera2(1) # Left camera
+      cfg = self.cam.create_preview_configuration(main={'size': (960, 700)})
+      cfg1 = self.cam1.create_preview_configuration(main={'size': (960, 700)})
       self.cam.configure(cfg)
       self.cam1.configure(cfg1)
       # cam.set_controls({"FrameRate": 5})
@@ -131,6 +132,7 @@ class ControlTask:
       self.lastRotationDir = 0
       self.lastTimeFarFromBase = 0.0
       self.starting_err_time = 0.0
+      self.rotat_ctr_since_finding_wall = 0
       self.leftDistQueue = CyclicQueue(LEFT_DIST_QUEUE_SIZE)
 
       self.cam.start()
@@ -207,6 +209,7 @@ class ControlTask:
          # print(f"Estado atual {self.actual_state}")
          # print(f"Próximo estado {self.next_state}")
          self.fsmRun()
+         # self.rotateTest()
          time.sleep(0.01)
 
    def run(self):
@@ -279,25 +282,29 @@ class ControlTask:
       while True:
          a = self.cam1.capture_array("main")
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
+         a = cv2.rotate(a, cv2.ROTATE_180)
          # a = cv2.resize(a, (960, 540))
 
-         a = cv2.rotate(a, cv2.ROTATE_180)
+         infraredImg = self.cam.capture_array("main")
+         infraredImg = cv2.cvtColor(infraredImg, cv2.COLOR_BGR2RGB)
+         infraredImg = cv2.rotate(infraredImg, cv2.ROTATE_180)
          
          # self.updateMap(0, 0, 0)
 
-         if a is None:
+         if (a is None) or (infraredImg is None):
             continue
 
          a_grey = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
+         ir_gray = cv2.cvtColor(infraredImg, cv2.COLOR_RGB2GRAY)
          
          # Creates a binary image for the infrared detection. Blurrs the image and finds the circles
          # using the HoughCircles method from OpenCV
          if(self.search_for_IR == True):
-            a_grey_up = a_grey[:300, :]
-            (a_t, ir_binary_img) = cv2.threshold(a_grey_up, 200, 255,cv2.THRESH_BINARY)
+            ir_gray_up = ir_gray[:400, :]
+            (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 200, 255,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
-            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=35, minRadius=5, maxRadius=25)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=100, param2=20, minRadius=5, maxRadius=25)
 
             if ir_balls is not None:
                ir_balls = np.uint16(np.around(ir_balls))
@@ -306,11 +313,13 @@ class ControlTask:
                   if ir_binary_img[ball[1]][ball[0]] > 150:
                      self.baseIRPosition = [(ball[0] - 440), ball[1]]
                      self.time_findIR = time.time()
-                     cv2.circle(a_grey_up, (ball[0], ball[1]), 1, (0,100,100), 3)
-                     cv2.circle(a_grey_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
+                     cv2.circle(ir_gray_up, (ball[0], ball[1]), 1, (0,100,100), 3)
+                     cv2.circle(ir_gray_up, (ball[0], ball[1]), ball[2], (255,0,255), 3)
             elif ((time.time() - self.time_findIR) > 2):
                self.baseIRPosition = [0, 0]
-            # cv2.imshow("iR", a_grey_up) 
+            
+            # cv2.imshow("iR", ir_gray_up)
+            # cv2.imwrite('img_ir.png', ir_gray_up)
             # cv2.waitKey(1)
             if(time.time() - self.time_findIR > 45):
                self.base_not_found = True
@@ -320,7 +329,7 @@ class ControlTask:
          a_grey = cv2.normalize(a_grey, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
          
          a_blur = cv2.GaussianBlur(a_grey, (17, 17), 0)
-         circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=50, maxRadius=70)
+         circles = cv2.HoughCircles(a_blur, cv2.HOUGH_GRADIENT, 1.2, 10, param1=100, param2=35, minRadius=25, maxRadius=70)
          # print(circles)
          if circles is not None:
             circles = np.uint16(np.around(circles))
@@ -332,17 +341,17 @@ class ControlTask:
                      cv2.circle(a_grey, (i[0], i[1]), i[2], (255,0,255), 3)
 
                      dist_ball = pow(i[2], -1.05)
-                     dist_ball *= 2495
+                     dist_ball *= 1750
                      horizontal_dist = 2*(i[0] - 480)/i[2]
                      theta = math.asin(horizontal_dist/dist_ball)
                      dist_center_ball = math.sqrt((dist_ball * dist_ball) + (3 * 3) - 2 * dist_ball * 3 * theta)
                      theta_center = math.asin((horizontal_dist - 1)/dist_center_ball)
-                     # print("dist: ", i[2], " pixel")
-                     # print("dist: ", dist_ball, " cm")
-                     # print("hor dist: ", horizontal_dist, " cm")
-                     # print("angle with camera: ", theta*180/math.pi)
-                     # print("center dist: ", dist_center_ball, " cm")
-                     # print("angle with center: ", theta_center*180/math.pi)
+                     print("dist: ", i[2], " pixel")
+                     print("dist: ", dist_ball, " cm")
+                     print("hor dist: ", horizontal_dist, " cm")
+                     print("angle with camera: ", theta*180/math.pi)
+                     print("center dist: ", dist_center_ball, " cm")
+                     print("angle with center: ", theta_center*180/math.pi)
                      x_ball, y_ball = self.convert(dist_center_ball, theta_center)
                      if dist_ball < 100:
                         self.addBall(x_ball, y_ball)
@@ -355,8 +364,8 @@ class ControlTask:
          # cv2.waitKey(1)
          # cv2.imshow("a", a_grey)
          # cv2.imshow("an", a_norm)
-         cv2.imwrite('img.png', a_grey)
-         cv2.waitKey(1)
+         # cv2.imwrite('img.png', a_grey)
+         # cv2.waitKey(1)
          # print(len(a))
          
          if cv2.waitKey(1) == 27:
@@ -487,12 +496,12 @@ class ControlTask:
       self.is_parallel_wall = self.peripherals.getLeftDistance() < DIST_TOO_CLOSE_IN_CM
       self.base_found_camera = False         # Needs IR detection
       # self.base_not_found = False
-      self.base_connected = False            # IDK
+      self.base_connected = self.peripherals.isHallEffectSensActive()
       self.front_ir_detected_but_not_end = self.peripherals.isBallStuck()
       self.robot_running_encoder = (self.peripherals.getLeftEncoderSteps() - self.encoder_left_last) != 0 and (self.peripherals.getRightEncoderSteps() - self.encoder_right_last) != 0
       self.robot_running_imu = True         # Needs IMU
-      self.resume_command_rcvd = False       # IDK
-      self.pause_command_rcvd = False        # IDK
+      # self.resume_command_rcvd = False       # IDK
+      # self.pause_command_rcvd = False        # IDK
       self.balls_colected = self.peripherals.getCollectedBallsQty()
       self.encoder_left_last = self.peripherals.getLeftEncoderSteps()
       self.encoder_right_last = self.peripherals.getRightEncoderSteps()
@@ -548,7 +557,7 @@ class ControlTask:
 
    def init(self):
       # Entry
-      if(self.actual_state == State.INIT):
+      if(self.actual_state != State.INIT):
          self.actual_state = self.next_state
       
       # Exit
@@ -559,7 +568,7 @@ class ControlTask:
          self.next_state = State.CONNECTED_TO_BASE
          self.last_state = self.actual_state
       elif(self.base_connected == False):
-         self.next_state = State.SEARCHING_BASE_WALL
+         self.next_state = State.FINDING_WALL
          self.last_state = self.actual_state
       
    def searchingBaseFollowingWall(self):
@@ -576,13 +585,20 @@ class ControlTask:
       # Exit
       if(self.baseIRPosition[0] != 0):
          self.next_state = State.GOING_AFTER_BASE_CAM
-         self.leftDistQueue.reset()
          self.last_state = self.actual_state
+         self.leftDistQueue.reset()
+         self.rotat_ctr_since_finding_wall = 0
+      elif(self.rotat_ctr_since_finding_wall > 4):
+         self.next_state = State.BASE_NOT_FOUND
+         self.last_state = self.actual_state
+         self.leftDistQueue.reset()
+         self.rotat_ctr_since_finding_wall = 0
       elif(self.close_wall == True):
          self.lastRotationDir = 1
          self.next_state      = State.ROTATING_TILL_PARALLEL
+         self.last_state      = self.actual_state
          self.leftDistQueue.reset()
-         self.last_state = self.actual_state
+         self.rotat_ctr_since_finding_wall += 1
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
@@ -640,18 +656,17 @@ class ControlTask:
       if (self.peripherals.getBackDistance() > 2):
          self.lastTimeFarFromBase = time.time()
       
-      if (self.peripherals.isHallEffectSensActive() or (((time.time() - self.lastTimeFarFromBase) > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
+      if (self.base_connected or ((time.time() - self.lastTimeFarFromBase > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
          self.peripherals.stopRobot()
          self.peripherals.setVacuumMotorPWM(0.0)
-         self.peripherals.resetEncoders()
-         self.base_connected = True
 
       # Exit
       if(self.base_connected == True):
-         self.next_state = State.CONNECTED_TO_BASE
-         self.baseIRPosition = [0, 0]
+         self.next_state          = State.CONNECTED_TO_BASE
+         self.last_state          = self.actual_state
+         self.baseIRPosition      = [0, 0]
          self.lastTimeFarFromBase = 0.0
-         self.last_state = self.actual_state
+         self.opperation_complete = True
          self.status = ""
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
@@ -682,7 +697,7 @@ class ControlTask:
          self.last_state = self.actual_state
       elif(self.base_not_found == True):
          self.base_not_found = False
-         self.next_state = State.BASE_NOT_FOUND
+         self.next_state = State.FINDING_WALL
          self.last_state = self.actual_state
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
@@ -708,7 +723,7 @@ class ControlTask:
       time.sleep(0.5)
 
       # Exit
-      if (self.baseIRPosition[1] < 10):
+      if (self.baseIRPosition[1] < IR_BALL_HEIGHT_FOR_BASE_CONNECT):
          self.peripherals.driveRobotForward(0.0, 0, 0)
          self.next_state = State.CONNECTING_TO_BASE
          self.search_for_IR = False
@@ -716,7 +731,7 @@ class ControlTask:
          self.status = ""
       elif(self.base_not_found == True):
          self.base_not_found = False
-         self.next_state = State.BASE_NOT_FOUND
+         self.next_state = State.FINDING_WALL
          self.last_state = self.actual_state
       elif(self.robot_running_encoder == True and self.robot_running_imu == False):
          self.next_state = State.ROBOT_STUCK
@@ -741,6 +756,7 @@ class ControlTask:
       elif(self.opperation_complete == True):
          self.next_state = State.WAITING_FOR_CMD_OR_SCHEDULE
          self.last_state = self.actual_state
+         self.opperation_complete = False
    
    def waitingForCharger(self):
       # Entry
@@ -787,6 +803,7 @@ class ControlTask:
       if(self.actual_state != State.WAITING_FOR_CMD_OR_SCHEDULE):
          self.disablePeripherals()
          self.actual_state = self.next_state
+         self.status = ""
       
       # Do
 
@@ -825,11 +842,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
-         self.status = ""
-      elif(self.close_wall == True):
-         self.lastRotationDir = 1
-         self.next_state      = State.ROTATING_TILL_PARALLEL
-         self.last_state      = self.actual_state
+         self.pause_command_rcvd = False
          self.status = ""
       elif(self.static_object_detected == True):
          self.next_state = State.AVOIDING_STATIC_OBJECT
@@ -859,6 +872,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
+         self.pause_command_rcvd = False
 
    def avoidingStaticObject(self):
       if(self.actual_state != State.AVOIDING_STATIC_OBJECT):
@@ -879,6 +893,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
+         self.pause_command_rcvd = False
    
    def robotPaused(self):
       if(self.actual_state != State.PAUSED):
@@ -892,6 +907,7 @@ class ControlTask:
       if((self.resume_command_rcvd == True) or (self.start_command_rcvd == True)):
          self.next_state = self.last_state
          self.last_state = self.actual_state
+         self.resume_command_rcvd = False
          self.status = ""
    
    def catchingBall(self):
@@ -921,7 +937,7 @@ class ControlTask:
       elif(self.pause_command_rcvd == True):
          self.next_state = State.PAUSED
          self.last_state = self.actual_state
-         self.status = ""
+         self.pause_command_rcvd = False
       elif(self.front_ir_detected_but_not_end == True):
          self.next_state = State.BALL_STUCK
          self.last_state = self.actual_state
@@ -953,9 +969,15 @@ class ControlTask:
       # Do
       
       # Exit
+      if (self.start_command_rcvd == True):
+         self.next_state = State.INIT
+         self.last_state = self.actual_state
+         # start_command_rcvd must remain True so that the robot can pass through the
+         # WAITING_FOR_CMD_OR_SCHEDULE state with only 1 click of the start button
+         # self.start_command_rcvd = False
    
    def robotStuck(self):
-      if(self.actual_state != State.BALL_STUCK):
+      if(self.actual_state != State.ROBOT_STUCK):
          self.stopMotors()
          self.starting_err_time = time.time()
          self.actual_state = self.next_state
@@ -984,7 +1006,7 @@ class ControlTask:
       # Exit
       if(time.time() - self.starting_err_time >= 1):
          self.sendWarningUser("")
-         self.next_state = State.SEARCHING_BASE_WALL
+         self.next_state = State.PAUSED
          self.last_state = self.actual_state
 
    def findWall(self):
@@ -1169,6 +1191,8 @@ class ControlTask:
       angle = math.atan(ball[0]/ball[1])
       angle = abs(angle)
       angle_sum = 0
+
+      # ball[0] = ball[0] + 3
       
       time.sleep(1)
       while(ball[0] > 1 or ball[0] < -1):
@@ -1180,7 +1204,9 @@ class ControlTask:
             self.peripherals.rotate(0, 0.01, 0.25)
          self.is_rotating = False
          angle_sum += 0.01
-         if(angle_sum > (angle - (angle/10))):
+         if ((angle_sum > (angle - (angle/10))) and ball[0] < -1):
+            break
+         if ((angle_sum > (angle - (angle/8))) and ball[0] > 1):
             break
          time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)
@@ -1208,7 +1234,7 @@ class ControlTask:
       while(ball[1] > -2):
          self.peripherals.driveRobotForward(0.3, 0, 0)
          self.peripherals.setVacuumMotorPWM(0.3)
-         time.sleep(0.01)
+         time.sleep(0.5)
       
       self.peripherals.driveRobotForward(0.0, 0, 0)
       time.sleep(0.5)
@@ -1265,10 +1291,10 @@ class ControlTask:
       # self.balls.sort(key=closest())
 
    def rotateTest(self):
-      print("Entering rotateTest")
+      # print("Entering rotateTest")
       
       if(len(self.balls) == 0):
-         print("ERROR: No ball detected")
+         # print("ERROR: No ball detected")
          return
       
       ball = self.balls[0]
@@ -1277,13 +1303,13 @@ class ControlTask:
       # angle_sum = 0
       angle = 0
 
-      print(
-         f"""
-         Camera trace
-         Coord: {ball}
-         Angle: {angle}
-         """
-      )
+      # print(
+      #    f"""
+      #    Camera trace
+      #    Coord: {ball}
+      #    Angle: {angle}
+      #    """
+      # )
 
       # time.sleep(1)
       # while(ball[0] > 1 or ball[0] < -1):
