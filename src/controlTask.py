@@ -312,7 +312,7 @@ class ControlTask:
                self.baseIRPosition = [0, 0]
             # cv2.imshow("iR", a_grey_up) 
             # cv2.waitKey(1)
-            if(time.time() - self.time_findIR > 10):
+            if(time.time() - self.time_findIR > 45):
                self.base_not_found = True
                self.search_for_IR = False
             
@@ -634,15 +634,13 @@ class ControlTask:
       # Entry
       if(self.actual_state != State.CONNECTING_TO_BASE):
          self.actual_state = self.next_state
+         self.steerBase()
       
       # Do
-      if (self.lastTimeFarFromBase == 0.0):
-         self.steerBase()
-
       if (self.peripherals.getBackDistance() > 2):
          self.lastTimeFarFromBase = time.time()
       
-      if (self.peripherals.isHallEffectSensActive() or ((time.time() - self.lastTimeFarFromBase > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
+      if (self.peripherals.isHallEffectSensActive() or (((time.time() - self.lastTimeFarFromBase) > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
          self.peripherals.stopRobot()
          self.peripherals.setVacuumMotorPWM(0.0)
          self.peripherals.resetEncoders()
@@ -674,7 +672,7 @@ class ControlTask:
       self.is_rotating = True
       print(f"base position: {self.baseIRPosition}")
       if self.baseIRPosition[0] == 0:
-         self.peripherals.rotate(self.lastRotationDir, 0.02, 0.3)
+         self.peripherals.rotate(self.lastRotationDir, 0.04, 0.3)
          time.sleep(0.2)
       self.is_rotating = False
 
@@ -1037,6 +1035,8 @@ class ControlTask:
    # Rotates the robot, aligns with the center of the base and parks the robot backwards
    def steerBase(self):
       robot_ang_rel_to_base = math.atan2(self.last_position[1], self.last_position[0])
+      if (abs(robot_ang_rel_to_base) > 0.523):
+         robot_ang_rel_to_base = 0.523
 
       self.is_rotating = True
       self.peripherals.rotate(0, APPROX_PI, 0.3) # Rotates 180 degrees
@@ -1059,7 +1059,7 @@ class ControlTask:
             self.peripherals.rotate(0, abs(robot_ang_rel_to_base), 0.3)
          self.is_rotating = False
       
-      self.peripherals.driveRobotBackward(0.15, 0, 0)
+      self.peripherals.driveRobotBackward(0.2, 0, 0)
 
       return
    
