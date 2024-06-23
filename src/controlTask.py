@@ -36,6 +36,10 @@ class Direction(Enum):
 
 dist = lambda x1,y1,x2,y2: math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
 
+def isBallsColliding(ball1: list, ball2:list):
+    dist_center = dist(ball1[0], ball1[1], ball2[0], ball2[1])
+    return dist_center < (ball1[2] + ball2[2])
+
 global_map = []
 
 def closest(element):
@@ -261,7 +265,7 @@ class ControlTask:
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
       for ball in self.balls:
-         self.btPeriodicMsg["balls_coordinates"].append([ball[0], ball[1]])
+         self.btPeriodicMsg["balls_coordinates"].append([ball[0][0], ball[0][1]])
       self.btPeriodicMsg["robot_status"] = self.status
 
    def followWalls(self):
@@ -306,7 +310,7 @@ class ControlTask:
          # using the HoughCircles method from OpenCV
          if(self.search_for_IR == True):
             ir_gray_up = ir_gray[:400, :]
-            (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 220, 235,cv2.THRESH_BINARY)
+            (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 235, 255,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
             ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=50, param2=20, minRadius=4, maxRadius=20)
@@ -364,8 +368,7 @@ class ControlTask:
                         print("center dist: ", dist_center_ball, " cm")
                         print("angle with center: ", theta_center*180/math.pi)
                         x_ball, y_ball = self.convert(dist_center_ball, theta_center)
-                        if dist_ball < 45:
-                           self.addBall(x_ball, y_ball)
+                        self.addBall(x_ball, y_ball, i[0], i[1], i[2])
                
                cv2.imwrite('img.png', a_grey)
 
@@ -486,7 +489,7 @@ class ControlTask:
       self.stop_ball_search = False
       
       self.actual_state = State.INIT
-      self.next_state = State.INIT
+      self.next_state = State.SEARCHING_BALLS
       self.last_state = State.INIT
 
    def fsmRun(self):
@@ -835,43 +838,43 @@ class ControlTask:
    
    def searchingForBall(self):
       # Entry
-      if(self.actual_state != State.SEARCHING_BALLS):
-         self.actual_state = self.next_state
-         self.peripherals.driveRobotForward(0.1, 0, 0)
-         time.sleep(0.3)
-         self.peripherals.driveRobotForward(0.2, 0, 0)
-         time.sleep(0.3)
-         self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
-         time.sleep(0.3)
-         self.status = "searching_for_balls"
+      # if(self.actual_state != State.SEARCHING_BALLS):
+      #    self.actual_state = self.next_state
+      #    self.peripherals.driveRobotForward(0.1, 0, 0)
+      #    time.sleep(0.3)
+      #    self.peripherals.driveRobotForward(0.2, 0, 0)
+      #    time.sleep(0.3)
+      #    self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
+      #    time.sleep(0.3)
+      #    self.status = "searching_for_balls"
       
       # Do
       self.moveInPattern()
       
       # Exit
-      if(self.robot_running_encoder == True and self.robot_running_imu == False):
-         self.next_state = State.ROBOT_STUCK
-         self.last_state = self.actual_state
-         self.status = ""
-      elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
-         self.next_state = State.SEARCHING_BASE_CAM
-         self.last_state = self.actual_state
-         self.status = ""
-         self.stop_command_rcvd = False
-      elif(self.pause_command_rcvd == True):
-         self.next_state = State.PAUSED
-         self.last_state = self.actual_state
-         self.pause_command_rcvd = False
-         self.status = ""
-      elif(self.static_object_detected == True):
-         self.next_state = State.AVOIDING_STATIC_OBJECT
-         self.last_state = self.actual_state
-         self.status = ""
-      elif(self.ball_detected == True):
-         self.next_state = State.CATCHING_BALL
-         self.last_state = self.actual_state
-         self.stop_ball_search = True
-         self.status = ""
+      # if(self.robot_running_encoder == True and self.robot_running_imu == False):
+      #    self.next_state = State.ROBOT_STUCK
+      #    self.last_state = self.actual_state
+      #    self.status = ""
+      # elif(self.stop_command_rcvd == True or self.battery_low == True or self.load_full == True or self.end_schedule == True):
+      #    self.next_state = State.SEARCHING_BASE_CAM
+      #    self.last_state = self.actual_state
+      #    self.status = ""
+      #    self.stop_command_rcvd = False
+      # elif(self.pause_command_rcvd == True):
+      #    self.next_state = State.PAUSED
+      #    self.last_state = self.actual_state
+      #    self.pause_command_rcvd = False
+      #    self.status = ""
+      # elif(self.static_object_detected == True):
+      #    self.next_state = State.AVOIDING_STATIC_OBJECT
+      #    self.last_state = self.actual_state
+      #    self.status = ""
+      # elif(self.ball_detected == True):
+      #    self.next_state = State.CATCHING_BALL
+      #    self.last_state = self.actual_state
+      #    self.stop_ball_search = True
+      #    self.status = ""
       
    def avoidingWall(self):
       # Entry
@@ -1122,22 +1125,27 @@ class ControlTask:
       self.peripherals.close()
    
    def moveInPattern(self):
-      self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
+      print(self.balls)
+      self.is_rotating = True
+      self.peripherals.rotate(1, APPROX_PI / 40, PWM_ROTATE/2.5)
+      time.sleep(1)
+      self.peripherals.rotate(0, APPROX_PI / 40, PWM_ROTATE/2.5)
+      self.is_rotating = False
 
-      if self.peripherals.getFrontDistance() < 30:
-         self.is_rotating = True
-         self.peripherals.rotate(1, APPROX_PI / 2, PWM_ROTATE)
-         self.is_rotating = False
+      # if self.peripherals.getFrontDistance() < 30:
+      #    self.is_rotating = True
+      #    self.peripherals.rotate(1, APPROX_PI / 2, PWM_ROTATE)
+      #    self.is_rotating = False
 
-         self.peripherals.driveRobotForward(0.1, 0, 0)
-         time.sleep(0.3)
-         self.peripherals.driveRobotForward(0.2, 0, 0)
-         time.sleep(0.3)
-         self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
-         time.sleep(0.3)
+      #    self.peripherals.driveRobotForward(0.1, 0, 0)
+      #    time.sleep(0.3)
+      #    self.peripherals.driveRobotForward(0.2, 0, 0)
+      #    time.sleep(0.3)
+      #    self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
+      #    time.sleep(0.3)
 
-      if self.balls != []:
-         self.next_state = State.CATCHING_BALL
+      # if self.balls != []:
+      #    self.next_state = State.CATCHING_BALL
 
       return
 
@@ -1209,25 +1217,25 @@ class ControlTask:
          return
       
       ball = self.balls[0]
-      angle = math.atan(ball[0]/ball[1])
+      angle = math.atan(ball[0][0]/ball[0][1])
       angle = abs(angle)
       angle_sum = 0
 
       # ball[0] = ball[0] + 3
       
       time.sleep(1)
-      while(ball[0] > 1 or ball[0] < -1):
+      while(ball[0][0] > 1 or ball[0][0] < -1):
          print(f"ball zero: {ball[0]}")
          self.is_rotating = True
-         if(ball[0] > 0):
+         if(ball[0][0] > 0):
             self.peripherals.rotate(1, 0.01, PWM_ROTATE-0.05)
          else:
             self.peripherals.rotate(0, 0.01, PWM_ROTATE-0.05)
          self.is_rotating = False
          angle_sum += 0.01
-         if ((angle_sum > (angle - (angle/8))) and ball[0] < -1):
+         if ((angle_sum > (angle - (angle/8))) and ball[0][0] < -1):
             break
-         if ((angle_sum > (angle - (angle/7))) and ball[0] > 1):
+         if ((angle_sum > (angle - (angle/7))) and ball[0][0] > 1):
             break
          time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)
@@ -1252,7 +1260,7 @@ class ControlTask:
       time.sleep(0.3)
       self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
 
-      while(ball[1] > -10):
+      while(ball[0][1] > -10):
          self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
          self.peripherals.setVacuumMotorPWM(0.3)
          time.sleep(0.5)
@@ -1271,43 +1279,43 @@ class ControlTask:
       y = dist*math.cos(theta)
       return (x, y)
 
-   def verifier(self):
-      for i in range(0, len(self.balls)):
-         if(i > len(self.balls)):
-               break
-         if(self.balls[i][1] < 0):
-               self.balls.pop(i)
-               i -= 1
-         elif(self.balls[i][1] > 50):
-               self.balls[i][3] += 1
-               if(self.balls[i][3] > 20):
-                  self.balls.pop(i)
-                  i -= 1
+   # def verifier(self):
+   #    for i in range(0, len(self.balls)):
+   #       if(i > len(self.balls)):
+   #             break
+   #       if(self.balls[i][1] < 0):
+   #             self.balls.pop(i)
+   #             i -= 1
+   #       elif(self.balls[i][1] > 50):
+   #             self.balls[i][3] += 1
+   #             if(self.balls[i][3] > 20):
+   #                self.balls.pop(i)
+   #                i -= 1
 
-   def addBall(self, x, y):
+   def addBall(self, x, y, px, py, pr):
+      new_ball = [[x, y], [px,py,pr]]
       for ball in self.balls:
-         dist_x = math.fabs(x - ball[0])
-         dist_y = math.fabs(y - ball[1])
-         if(dist_x < ball[2] and dist_y < ball[2]):
-               ball[0] = x
-               ball[1] = y
-               dist_calc = dist(x,y, 0, 0)
-               # print(dist_calc)
-               ball[2] = dist_calc*10.5/50 - 7
-               ball[3] = 0
+         if(isBallsColliding(ball[1], new_ball[1])):
+               ball[0][0] = x
+               ball[0][1] = y
+               ball[1][0] = px
+               ball[1][1] = py
+               ball[1][2] = pr
+               print("Update the ball")
                return
-      dist_calc = dist(x,y, 0, 0)
-      self.balls.append([x, y, dist_calc*10.5/50 - 7, 0])
-      global_map.append([x + self.last_position[0], y + self.last_position[1], dist_calc*10.5/50 - 7, 0])
+      # dist_calc = dist(x,y, 0, 0)
+      print("Add a ball")
+      self.balls.append(new_ball)
+      # global_map.append([x + self.last_position[0], y + self.last_position[1], dist_calc*10.5/50 - 7, 0])
       # self.global_map.sort(key=closest)
       
    def updateMap(self, delta_x, delta_y, delta_theta):
       mat = [[math.cos(delta_theta), -math.sin(delta_theta)], [math.sin(delta_theta), math.cos(delta_theta)]]
       for ball in self.balls:
-         ball[0] = ball[0]*mat[0][0] + ball[1]*mat[0][1]
-         ball[1] = ball[0]*mat[1][0] + ball[1]*mat[1][1]
-         ball[0] -= delta_x
-         ball[1] -= delta_y
+         ball[0][0] = ball[0][0]*mat[0][0] + ball[0][1]*mat[0][1]
+         ball[0][1] = ball[0][0]*mat[1][0] + ball[0][1]*mat[1][1]
+         ball[0][0] -= delta_x
+         ball[0][1] -= delta_y
 
       # self.balls.sort(key=closest())
 

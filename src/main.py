@@ -19,7 +19,7 @@ def safeExit(self, signum, frame):
 
 def main():
    bluetoothTask.start()
-   # taskScheduler.runRoutineNow()
+   taskScheduler.runRoutineNow()
    while True:
       try:
          signal(SIGTERM, safeExit)
