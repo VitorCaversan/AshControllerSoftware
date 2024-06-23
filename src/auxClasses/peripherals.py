@@ -8,6 +8,7 @@ import adafruit_ads1x15.ads1115 as ADS
 import adafruit_icm20x as IMU
 from auxClasses.infraredSensorMngr import InfraredSensorMngr
 from auxClasses.encoderSensorMngr import EncoderSensorMnger
+from auxClasses.stuckDetector import StuckDetector
 from enum import Enum
 
 MOTOR_STEPS_PER_TURN = 872
@@ -55,11 +56,12 @@ class Peripherals:
       self.encoderLeft      = RotaryEncoder(a=6, b=5, max_steps=0) # 872 steps/turn
       self.encoderRight     = RotaryEncoder(a=24, b=25, max_steps=0) # 872 steps/turn
       # self.leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-      self.frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+      self.frontDistSens    = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
       # self.rightDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15) # front was (echo=9, trigger=13, threshold_distance=0.15)
-      self.backDistSens    = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
+      self.backDistSens     = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
       self.tubeSensMngr     = InfraredSensorMngr(frontPin=14, backPin=15)
       self.robotOdom        = EncoderSensorMnger()
+      self.stuckDetector    = StuckDetector()
       self.hallEffectSens   = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
       self.servo            = Servo(pin=16)
       # self.ads              = ADS.ADS1115(busio.I2C(scl=3, sda=2))
@@ -283,6 +285,9 @@ class Peripherals:
             # print(f"Steps rotation right: {abs(self.encoderRight.steps - initialSteps)} / {stepsToTurn}")
             # print(f"Total steps right: {self.encoderRight.steps}")
             # print(f"Initial steps right: {initialSteps}")
+            if self.stuckDetector.isRobotStuck():
+               self.stopRobot()
+               return
             time.sleep(0.01)
       elif (direction == 1):
          initialSteps = self.encoderLeft.steps
@@ -293,6 +298,9 @@ class Peripherals:
             # print(f"Steps rotation left: {abs(self.encoderLeft.steps - initialSteps)} / {stepsToTurn}")
             # print(f"Total steps left: {self.encoderLeft.steps}")
             # print(f"Initial steps left: {initialSteps}")
+            if self.stuckDetector.isRobotStuck():
+               self.stopRobot()
+               return
             time.sleep(0.01)
       else:
          print("Invalid direction")
@@ -334,7 +342,9 @@ class Peripherals:
       return self.tubeSensMngr.isBallStuck()
    
    def updatePositionOdometry(self):
-      return self.robotOdom.routine(self.encoderLeft, self.encoderRight)
+      self.stuckDetector.routine(self.encoderLeft, self.encoderRight, self.currLeftMotorPWM, self.currRightMotorPWM)
+      self.robotOdom.routine(self.encoderLeft, self.encoderRight)
+      return
    
    def getOdometry(self):
       return self.robotOdom.getLocation()
