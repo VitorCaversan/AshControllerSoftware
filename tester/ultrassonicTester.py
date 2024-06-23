@@ -3,8 +3,8 @@ import time
 
 
 leftDistSens     = DistanceSensor(echo=27, trigger=17, threshold_distance=0.15)
-frontDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
-rightDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
+# rightDistSens   = DistanceSensor(echo=9, trigger=13, threshold_distance=0.15)
+frontDistSens   = DistanceSensor(echo=22, trigger=11, threshold_distance=0.15)
 backDistSens    = DistanceSensor(echo=10, trigger=0, threshold_distance=0.15)
 
 hallEffectSens = DigitalInputDevice(pin=23, pull_up=None, active_state=False)
@@ -18,7 +18,7 @@ def getFrontDistance() -> float:
     # return 0
 
 def getRightDistance() -> float:
-   return rightDistSens.distance * 100.0
+   return 100.0#rightDistSens.distance * 100.0
     # return 0
 
 def getBackDistance() -> float:
