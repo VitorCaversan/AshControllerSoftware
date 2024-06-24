@@ -2,7 +2,7 @@ import time
 import math
 
 MOTOR_STEPS_PER_TURN = 872
-MAX_MOTOR_RMP = 50
+MAX_MOTOR_RMP = 40
 MAX_SPEED_IN_STEPS_PER_S = (MAX_MOTOR_RMP * MOTOR_STEPS_PER_TURN) / 60
 
 class StuckDetector:

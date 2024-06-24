@@ -335,7 +335,7 @@ class ControlTask:
                # cv2.imshow("iR", ir_blur_img)
                # cv2.imwrite('img_ir_gray.png', ir_gray_up)
                cv2.imwrite('img_ir.png', ir_blur_img)
-               # cv2.imwrite('img_ir_bin.png', ir_binary_img)
+               cv2.imwrite('img_ir_bin.png', ir_binary_img)
                # cv2.waitKey(1)
             elif ((time.time() - self.time_findIR) > 4):
                self.baseIRPosition = [0, 0]
@@ -680,7 +680,8 @@ class ControlTask:
       if (self.peripherals.getBackDistance() > 2):
          self.lastTimeFarFromBase = time.time()
       
-      if (self.base_connected or ((time.time() - self.lastTimeFarFromBase > 1.0) and (self.peripherals.getBackDistance() < 2.0))):
+      if (self.base_connected or ((time.time() - self.lastTimeFarFromBase > 1.0) and (self.peripherals.getBackDistance() < 2.0)) or self.peripherals.isRobotStuck()):
+         self.base_connected = True
          self.peripherals.stopRobot()
          self.peripherals.setVacuumMotorPWM(0.0)
 
@@ -753,7 +754,7 @@ class ControlTask:
          print("will set forward")
          self.peripherals.driveRobotForward(0.4, 0, 0)
 
-      time.sleep(0.5)
+      time.sleep(0.2)
 
       # Exit
       
@@ -1135,8 +1136,10 @@ class ControlTask:
 
       if self.peripherals.getFrontDistance() < 30:
          self.is_rotating = True
+         self.stop_ball_search = True
          self.peripherals.rotate(1, APPROX_PI / 2, PWM_ROTATE)
          self.is_rotating = False
+         self.stop_ball_search = False
 
          self.peripherals.driveRobotForward(0.1, 0, 0)
          time.sleep(0.3)
@@ -1236,7 +1239,7 @@ class ControlTask:
          angle_sum += 0.01
          if ((angle_sum > (angle - (angle/8))) and ball[0] < -1):
             break
-         if ((angle_sum > (angle - (angle/7))) and ball[0] > 1):
+         if ((angle_sum > (angle - (angle/6))) and ball[0] > 1):
             break
          time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)

@@ -13,7 +13,8 @@ from enum import Enum
 
 MOTOR_STEPS_PER_TURN = 872
 ROBOT_RADIUS_FROM_CENTER_IN_M = 0.115
-WHEEL_DIAMETER_IN_M = 0.068
+RIGHT_WHEEL_DIAMETER_IN_M = 0.068
+LEFT_WHEEL_DIAMETER_IN_M = 0.068
 # Enum for forward and backward directions
 class Direction(Enum):
    BACKWARD = 0
@@ -24,8 +25,10 @@ PWM_FOR_MIN_SPEED = 0.2
 MAX_MOTOR_RMP = 100
 ROBOT_PWM_RAMP_RATE = 0.02
 MAX_SPEED_IN_STEPS_PER_S = (MAX_MOTOR_RMP * MOTOR_STEPS_PER_TURN) / 60
-WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * WHEEL_DIAMETER_IN_M
-MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / WHEEL_CIRCUMFERENCE_IN_M
+RIGHT_WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * RIGHT_WHEEL_DIAMETER_IN_M
+RIGHT_MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / RIGHT_WHEEL_CIRCUMFERENCE_IN_M
+LEFT_WHEEL_CIRCUMFERENCE_IN_M = 3.141592 * LEFT_WHEEL_DIAMETER_IN_M
+LEFT_MOTOR_STEPS_PER_M = MOTOR_STEPS_PER_TURN / LEFT_WHEEL_CIRCUMFERENCE_IN_M
 
 MAX_PWM_JUMP = 0.15
 
@@ -272,7 +275,6 @@ class Peripherals:
       rebasedSpeed = speed
 
       archSize = angle * ROBOT_RADIUS_FROM_CENTER_IN_M
-      stepsToTurn = archSize * MOTOR_STEPS_PER_M
 
       self.stopRobot()
       time.sleep(0.2)
@@ -282,6 +284,7 @@ class Peripherals:
 
       if (direction == 0):
          initialSteps = self.encoderRight.steps
+         stepsToTurn = archSize * RIGHT_MOTOR_STEPS_PER_M
          self.rightMotor.forward(speed=rebasedSpeed)
          self.leftMotor.backward(speed=rebasedSpeed)
          while (abs(self.encoderRight.steps - initialSteps) < stepsToTurn):
@@ -289,12 +292,13 @@ class Peripherals:
             # print(f"Steps rotation right: {abs(self.encoderRight.steps - initialSteps)} / {stepsToTurn}")
             # print(f"Total steps right: {self.encoderRight.steps}")
             # print(f"Initial steps right: {initialSteps}")
-            if self.stuckDetector.isRobotStuck():
+            if self.stuckDetector.isRobotStuck() and angle > 0.4:
                self.stopRobot()
                break
             time.sleep(0.01)
       elif (direction == 1):
          initialSteps = self.encoderLeft.steps
+         stepsToTurn = archSize * LEFT_MOTOR_STEPS_PER_M
          self.leftMotor.forward(speed=rebasedSpeed)
          self.rightMotor.backward(speed=rebasedSpeed)
          while (abs(self.encoderLeft.steps - initialSteps) < stepsToTurn):
@@ -302,7 +306,7 @@ class Peripherals:
             # print(f"Steps rotation left: {abs(self.encoderLeft.steps - initialSteps)} / {stepsToTurn}")
             # print(f"Total steps left: {self.encoderLeft.steps}")
             # print(f"Initial steps left: {initialSteps}")
-            if self.stuckDetector.isRobotStuck():
+            if self.stuckDetector.isRobotStuck() and angle > 0.4:
                self.stopRobot()
                break
             time.sleep(0.01)
@@ -330,6 +334,9 @@ class Peripherals:
 
    def isHallEffectSensActive(self) -> bool:
       return self.hallEffectSens.is_active
+   
+   def isRobotStuck(self) -> bool:
+      return self.stuckDetector.isRobotStuck()
    
    # def getLowerBatteryLvl(self) -> float:
    #    minVoltage = self.vacuumBattery.voltage # min(self.vacuumBattery.voltage, self.elctrnicsBattery.voltage)
