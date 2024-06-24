@@ -158,6 +158,7 @@ class ControlTask:
       #self.static_obj_detector_th = threading.Thread(target=self.staticObjDetectorTh)
       self.odometry_thread = threading.Thread(target=self.runOdometry)
       self.bluetooth_thread = threading.Thread(target=self.bluetoothHandlerTh)
+      self.stuck_detect_thread = threading.Thread(target=self.runStuckDetection)
 
    def runOdometry(self):
       while(True):
@@ -171,6 +172,11 @@ class ControlTask:
          self.last_position[2] = odom[2]
          time.sleep(0.05)
    
+   def runStuckDetection(self):
+      while True:
+         self.peripherals.updateRobotStuck()
+         time.sleep(0.5)
+
    # Handles received bluetooth messages and sends periodic messages
    def bluetoothHandlerTh(self):
       while True:
@@ -234,6 +240,7 @@ class ControlTask:
       self.odometry_thread.start()
       self.bluetooth_thread.start()
       self.ball_detector_th.start()
+      self.stuck_detect_thread.start()
       # self.static_obj_detector_th.start()
    
    def stop(self):
@@ -242,6 +249,7 @@ class ControlTask:
       self.odometry_thread.join()
       self.ball_detector_th.join()
       self.bluetooth_thread.join()
+      self.stuck_detect_thread.join()
       # self.static_obj_detector_th.join()
 
    def safeExit(self, signum, frame):
@@ -249,7 +257,8 @@ class ControlTask:
       self.odometry_thread.join()
       self.ball_detector_th.join()
       self.bluetooth_thread.join()
-      self.static_obj_detector_th.join()
+      self.stuck_detect_thread.join()
+      # self.static_obj_detector_th.join()
       exit(1)
    
    def updateBtPeriodicMsg(self):
@@ -309,7 +318,7 @@ class ControlTask:
             (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 220, 235,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
-            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=50, param2=20, minRadius=4, maxRadius=20)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=90, param2=20, minRadius=4, maxRadius=20)
             #ir_balls = cv2.HoughCircles(ir_binary_img, cv2.HOUGH_GRADIENT_ALT, 1.5, 10, param1=300, param2=0.8, minRadius=3, maxRadius=25)
 
             if ir_balls is not None:

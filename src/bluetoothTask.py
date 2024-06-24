@@ -102,12 +102,14 @@ class BluetoothTask:
                except socket.error as e:
                   print(f"Socket error: {e}")
                   self.ctrlMsgQueue.put("connection_lost")
-                  pass
+                  self.client = None
+                  break
                
                time.sleep(5)
          except socket.error as e:
             print(f"Socket error: {e}")
             self.ctrlMsgQueue.put("connection_lost")
+            self.client = None
             pass
          except IOError:
             self.ctrlMsgQueue.put("connection_lost")

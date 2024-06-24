@@ -266,7 +266,8 @@ class Peripherals:
    # angle: angle in radians
    def rotate(self, direction: int, angle: float, speed: float):
       initialSteps: int = 0
-      encoderSteps = {0: self.encoderRight.steps, 1: self.encoderLeft.steps}
+      bckupLeftPwm = self.currLeftMotorPWM
+      bckupRightPwm = self.currRightMotorPWM
 
       rebasedSpeed = speed
 
@@ -275,6 +276,9 @@ class Peripherals:
 
       self.stopRobot()
       time.sleep(0.2)
+
+      self.currLeftMotorPWM = speed
+      self.currRightMotorPWM = speed
 
       if (direction == 0):
          initialSteps = self.encoderRight.steps
@@ -287,7 +291,7 @@ class Peripherals:
             # print(f"Initial steps right: {initialSteps}")
             if self.stuckDetector.isRobotStuck():
                self.stopRobot()
-               return
+               break
             time.sleep(0.01)
       elif (direction == 1):
          initialSteps = self.encoderLeft.steps
@@ -300,7 +304,7 @@ class Peripherals:
             # print(f"Initial steps left: {initialSteps}")
             if self.stuckDetector.isRobotStuck():
                self.stopRobot()
-               return
+               break
             time.sleep(0.01)
       else:
          print("Invalid direction")
@@ -308,6 +312,9 @@ class Peripherals:
       
       self.leftMotor.stop()
       self.rightMotor.stop()
+
+      self.currLeftMotorPWM = bckupLeftPwm
+      self.currRightMotorPWM = bckupRightPwm
 
       return
    
@@ -342,9 +349,7 @@ class Peripherals:
       return self.tubeSensMngr.isBallStuck()
    
    def updatePositionOdometry(self):
-      self.stuckDetector.routine(self.encoderLeft, self.encoderRight, self.currLeftMotorPWM, self.currRightMotorPWM)
-      self.robotOdom.routine(self.encoderLeft, self.encoderRight)
-      return
+      return self.robotOdom.routine(self.encoderLeft, self.encoderRight)
    
    def getOdometry(self):
       return self.robotOdom.getLocation()
@@ -353,3 +358,7 @@ class Peripherals:
       self.tubeSensMngr.reset()
       self.resetEncoders()
       self.robotOdom.resetLocation()
+
+   def updateRobotStuck(self):
+      self.stuckDetector.routine(self.encoderLeft, self.encoderRight, self.currLeftMotorPWM, self.currRightMotorPWM)
+      return
