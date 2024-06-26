@@ -86,7 +86,7 @@ class BluetoothTask:
                try:
                   data = self.client.recv(1024).decode('utf-8')
                   if data:
-                     self.rxBtMsg.parseMsg(data)
+                     self.rxBtMsg.parseMsg(data, self.firstRunMsgReceived)
                      okMsg = {"status" : statusCodes[200],
                               "message" : "Robot started"}
                      self.client.send((json.dumps(okMsg) + '\n').encode('utf-8'))

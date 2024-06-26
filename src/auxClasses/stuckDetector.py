@@ -19,7 +19,7 @@ class StuckDetector:
 
       # print (f"stuck timer: {self.stuckTimer}, curr time: {time.time()}")
 
-      if (time.time() - self.stuckTimer) > 1.5:
+      if (time.time() - self.stuckTimer) > 2.5:
          self.stuckTimer = time.time()
 
          if (self.prevLeftMotorSteps != 0 and self.prevRightMotorSteps != 0):
@@ -28,8 +28,8 @@ class StuckDetector:
             else:
                   self.isStuck = False
 
-         print (f"left motor steps: {encoderLeft.steps}, prev left steps: {self.prevLeftMotorSteps}, taget steps/s: {targetStepsPerSLeft}")
-         print (f"Right motor steps: {encoderRight.steps}, prev Right steps: {self.prevRightMotorSteps}, taget steps/s: {targetStepsPerSRight}")
+         # print (f"left motor steps: {encoderLeft.steps}, prev left steps: {self.prevLeftMotorSteps}, taget steps/s: {targetStepsPerSLeft}")
+         # print (f"Right motor steps: {encoderRight.steps}, prev Right steps: {self.prevRightMotorSteps}, taget steps/s: {targetStepsPerSRight}")
 
          self.prevLeftMotorSteps  = encoderLeft.steps
          self.prevRightMotorSteps = encoderRight.steps

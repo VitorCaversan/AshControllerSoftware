@@ -26,7 +26,7 @@ DIST_TOO_CLOSE_IN_CM = 30
 PWM_FORWARD = 0.5
 PWM_ROTATE = 0.4
 
-IR_GHOST_BALL_DIST = 100
+IR_GHOST_BALL_DIST = 180
 
 # Enum for forward and backward directions
 class Direction(Enum):
@@ -212,10 +212,6 @@ class ControlTask:
 
       self.fsmInit()
 
-      self.actual_state = State.SEARCHING_BALLS
-      self.next_state = State.SEARCHING_BALLS
-      self.last_state = State.SEARCHING_BALLS
-
       while(True):
          # print(f"Estado atual {self.actual_state}")
          # print(f"Próximo estado {self.next_state}")
@@ -294,7 +290,7 @@ class ControlTask:
       # mean = 0
       i = 0
       while True:
-         a = self.cam1.capture_array("main")
+         a = self.cam.capture_array("main")
          a = cv2.cvtColor(a, cv2.COLOR_BGR2RGB)
          a = cv2.rotate(a, cv2.ROTATE_180)
          # a = cv2.resize(a, (960, 540))
@@ -315,10 +311,10 @@ class ControlTask:
          # using the HoughCircles method from OpenCV
          if(self.search_for_IR == True):
             ir_gray_up = ir_gray[:400, :]
-            (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 220, 235,cv2.THRESH_BINARY)
+            (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 230, 255,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
-            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=90, param2=20, minRadius=4, maxRadius=20)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=90, param2=20, minRadius=4, maxRadius=30)
             #ir_balls = cv2.HoughCircles(ir_binary_img, cv2.HOUGH_GRADIENT_ALT, 1.5, 10, param1=300, param2=0.8, minRadius=3, maxRadius=25)
 
             if ir_balls is not None:
@@ -334,10 +330,10 @@ class ControlTask:
             
                # cv2.imshow("iR", ir_blur_img)
                # cv2.imwrite('img_ir_gray.png', ir_gray_up)
-               cv2.imwrite('img_ir.png', ir_blur_img)
-               cv2.imwrite('img_ir_bin.png', ir_binary_img)
+                        cv2.imwrite('img_ir.png', ir_blur_img)
+                        cv2.imwrite('img_ir_bin.png', ir_binary_img)
                # cv2.waitKey(1)
-            elif ((time.time() - self.time_findIR) > 4):
+            elif ((time.time() - self.time_findIR) > 7):
                self.baseIRPosition = [0, 0]
             
             if(time.time() - self.time_findIR > 45):
@@ -361,8 +357,8 @@ class ControlTask:
                         cv2.circle(a_grey, (i[0], i[1]), i[2], (255,0,255), 3)
 
                         dist_ball = pow(i[2], -1.05)
-                        dist_ball *= 1750
-                        horizontal_dist = 2*(i[0] - 480)/i[2]
+                        dist_ball *= 1400
+                        horizontal_dist = 1.9*(i[0] - 480)/i[2] # 1.9cm is the radius of the ball
                         theta = math.asin(horizontal_dist/dist_ball)
                         dist_center_ball = math.sqrt((dist_ball * dist_ball) + (3 * 3) - 2 * dist_ball * 3 * theta)
                         theta_center = math.asin((horizontal_dist - 1)/dist_center_ball)
@@ -494,9 +490,9 @@ class ControlTask:
       self.search_for_IR = False
       self.stop_ball_search = False
       
-      self.actual_state = State.INIT
-      self.next_state = State.INIT
-      self.last_state = State.INIT
+      self.actual_state = State.SEARCHING_BALLS
+      self.next_state = State.SEARCHING_BALLS
+      self.last_state = State.SEARCHING_BALLS
 
    def fsmRun(self):
       # Update booleans
@@ -702,7 +698,10 @@ class ControlTask:
    def searchingBaseUsingCamera(self):
       # Entry
       if(self.actual_state != State.SEARCHING_BASE_CAM):
-         self.rotateInDirectOfBase()
+         self.findIR()
+         time.sleep(2)
+         if self.baseIRPosition[0] == 0:
+            self.rotateInDirectOfBase()
          # self.is_rotating = True
          # self.peripherals.rotate(0, APPROX_PI, PWM_ROTATE) # Rotates 180 degrees
          # self.is_rotating = False
@@ -1186,6 +1185,8 @@ class ControlTask:
          self.peripherals.rotate(0, 0.02, PWM_ROTATE - 0.05)
       self.is_rotating = False
 
+      time.sleep(0.5)
+
       return
 
    # Improve this
@@ -1229,7 +1230,7 @@ class ControlTask:
       
       time.sleep(1)
       while(ball[0] > 1 or ball[0] < -1):
-         print(f"ball zero: {ball[0]}")
+         print(f"ball zero: {ball[0]}, angle: {angle}, angle sum: {angle_sum}")
          self.is_rotating = True
          if(ball[0] > 0):
             self.peripherals.rotate(1, 0.01, PWM_ROTATE-0.05)
@@ -1237,9 +1238,9 @@ class ControlTask:
             self.peripherals.rotate(0, 0.01, PWM_ROTATE-0.05)
          self.is_rotating = False
          angle_sum += 0.01
-         if ((angle_sum > (angle - (angle/8))) and ball[0] < -1):
+         if ((angle_sum > (angle - (5*angle/10))) and ball[0] < -1):
             break
-         if ((angle_sum > (angle - (angle/6))) and ball[0] > 1):
+         if ((angle_sum > (angle - (5*angle/10))) and ball[0] > 1):
             break
          time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)
@@ -1359,6 +1360,6 @@ class ControlTask:
       #    time.sleep(0.1)
 
       # print(self.balls)
-      self.balls = []
+      # self.balls = []
       # print("Restarting test algorithm")
       # time.sleep(10)
