@@ -1193,9 +1193,13 @@ class ControlTask:
    # Improve this
    def moveAroundObject(self):
       self.static_object_avoided = False
-      while(self.peripherals.getFrontDistance() < 15 or self.peripherals.isRobotStuck()):
-         self.peripherals.driveRobotBackward(PWM_FORWARD-0.1, 0, 0)
-         time.sleep(1)
+      # while(self.peripherals.getFrontDistance() < 15 or self.peripherals.isRobotStuck()):
+      self.peripherals.driveRobotBackward(PWM_FORWARD-0.2, 0, 0)
+      time.sleep(0.5)
+      self.peripherals.driveRobotBackward(PWM_FORWARD-0.1, 0, 0)
+      time.sleep(0.5)
+      self.peripherals.driveRobotBackward(PWM_FORWARD, 0, 0)
+      time.sleep(1.5)
       self.is_rotating = True
       last_dist = 0
       self.peripherals.stopRobot()

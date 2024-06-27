@@ -18,10 +18,12 @@ class StuckDetector:
    def routine(self, encoderLeft, encoderRight, pwmLeft: float, pwmRight: float):
       # print (f"stuck timer: {self.stuckTimer}, curr time: {time.time()}")
 
+      # Resets the stuck timer if the pwm values are different
       if (pwmLeft != self.prevLeftPwm or pwmRight != self.prevRightPwm):
          self.prevLeftPwm = pwmLeft
          self.prevRightPwm = pwmRight
          self.stuckTimer = time.time()
+         self.isStuck = False
       elif (time.time() - self.stuckTimer) > 2.5:
          self.stuckTimer = time.time()
          targetStepsPerSLeft  = self.prevLeftPwm  * MAX_SPEED_IN_STEPS_PER_S
