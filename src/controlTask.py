@@ -336,7 +336,7 @@ class ControlTask:
             cv2.imwrite('img_ir.png', ir_blur_img)
             cv2.imwrite('img_ir_bin.png', ir_binary_img)
             
-            if(time.time() - self.time_findIR > 45):
+            if(time.time() - self.time_findIR > 60):
                self.base_not_found = True
                self.search_for_IR = False
          
@@ -1171,10 +1171,10 @@ class ControlTask:
       self.is_rotating = True
       if delta_angle < 0:
          self.lastRotationDir = 0
-         self.peripherals.rotate(self.lastRotationDir, ((-delta_angle) - 0.2), PWM_ROTATE)
+         self.peripherals.rotate(self.lastRotationDir, ((-delta_angle) + (delta_angle/2)), PWM_ROTATE)
       else:
          self.lastRotationDir = 1
-         self.peripherals.rotate(self.lastRotationDir, (delta_angle - 0.2), PWM_ROTATE)
+         self.peripherals.rotate(self.lastRotationDir, (delta_angle - (delta_angle/2)), PWM_ROTATE)
       self.is_rotating = False
 
    # Rotates the robot according to the baseIRPosition found, to lign it up with the base
