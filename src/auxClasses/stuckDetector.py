@@ -11,16 +11,21 @@ class StuckDetector:
       self.stuckTimer = time.time()
       self.prevLeftMotorSteps  = 0
       self.prevRightMotorSteps = 0
+      self.prevLeftPwm  = 0
+      self.prevRightPwm = 0
       self.isStuck = False
 
    def routine(self, encoderLeft, encoderRight, pwmLeft: float, pwmRight: float):
-      targetStepsPerSLeft  = pwmLeft  * MAX_SPEED_IN_STEPS_PER_S
-      targetStepsPerSRight = pwmRight * MAX_SPEED_IN_STEPS_PER_S
-
       # print (f"stuck timer: {self.stuckTimer}, curr time: {time.time()}")
 
-      if (time.time() - self.stuckTimer) > 2.5:
+      if (pwmLeft != self.prevLeftPwm or pwmRight != self.prevRightPwm):
+         self.prevLeftPwm = pwmLeft
+         self.prevRightPwm = pwmRight
          self.stuckTimer = time.time()
+      elif (time.time() - self.stuckTimer) > 2.5:
+         self.stuckTimer = time.time()
+         targetStepsPerSLeft  = self.prevLeftPwm  * MAX_SPEED_IN_STEPS_PER_S
+         targetStepsPerSRight = self.prevRightPwm * MAX_SPEED_IN_STEPS_PER_S
 
          if (self.prevLeftMotorSteps != 0 and self.prevRightMotorSteps != 0):
             if (abs(encoderLeft.steps - self.prevLeftMotorSteps) < targetStepsPerSLeft) or (abs(encoderRight.steps - self.prevRightMotorSteps) < targetStepsPerSRight):

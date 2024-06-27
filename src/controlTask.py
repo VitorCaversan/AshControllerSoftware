@@ -203,7 +203,7 @@ class ControlTask:
          except:
             pass
          
-         time.sleep(0.5)
+         time.sleep(0.4)
 
    def runRobot(self):
       print("running")
@@ -262,10 +262,10 @@ class ControlTask:
       self.btPeriodicMsg["sens_dist_front"] = round(self.peripherals.getFrontDistance(), 2)
       self.btPeriodicMsg["sens_dist_right"] = round(self.peripherals.getRightDistance(), 2)
       self.btPeriodicMsg["sens_dist_back"] = round(self.peripherals.getBackDistance(), 2)
-      self.btPeriodicMsg["battery_level"] = 30.0
+      self.btPeriodicMsg["battery_level"] = self.peripherals.getLowerBatteryLvl()
       self.btPeriodicMsg["balls_collected"] = self.peripherals.getCollectedBallsQty()
       self.btPeriodicMsg["balls_coordinates"] = []
-      for ball in self.balls:
+      for ball in self.balls[:3]:
          self.btPeriodicMsg["balls_coordinates"].append([ball[0], ball[1]])
       self.btPeriodicMsg["robot_status"] = self.status
 
@@ -314,7 +314,7 @@ class ControlTask:
             (a_t, ir_binary_img) = cv2.threshold(ir_gray_up, 230, 255,cv2.THRESH_BINARY)
             
             ir_blur_img = cv2.GaussianBlur(ir_binary_img, (17, 17), 0)
-            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=90, param2=20, minRadius=4, maxRadius=30)
+            ir_balls = cv2.HoughCircles(ir_blur_img, cv2.HOUGH_GRADIENT, 1.3, 10, param1=50, param2=20, minRadius=4, maxRadius=35)
             #ir_balls = cv2.HoughCircles(ir_binary_img, cv2.HOUGH_GRADIENT_ALT, 1.5, 10, param1=300, param2=0.8, minRadius=3, maxRadius=25)
 
             if ir_balls is not None:
@@ -329,12 +329,12 @@ class ControlTask:
                         cv2.circle(ir_blur_img, (ball[0], ball[1]), ball[2], (255,0,255), 3)
             
                # cv2.imshow("iR", ir_blur_img)
-               # cv2.imwrite('img_ir_gray.png', ir_gray_up)
-                        cv2.imwrite('img_ir.png', ir_blur_img)
-                        cv2.imwrite('img_ir_bin.png', ir_binary_img)
                # cv2.waitKey(1)
             elif ((time.time() - self.time_findIR) > 7):
                self.baseIRPosition = [0, 0]
+            cv2.imwrite('img_ir_gray.png', ir_gray_up)
+            cv2.imwrite('img_ir.png', ir_blur_img)
+            cv2.imwrite('img_ir_bin.png', ir_binary_img)
             
             if(time.time() - self.time_findIR > 45):
                self.base_not_found = True
@@ -369,7 +369,7 @@ class ControlTask:
                         print("center dist: ", dist_center_ball, " cm")
                         print("angle with center: ", theta_center*180/math.pi)
                         x_ball, y_ball = self.convert(dist_center_ball, theta_center)
-                        if dist_ball < 45:
+                        if dist_ball < 40:
                            self.addBall(x_ball, y_ball)
                
                cv2.imwrite('img.png', a_grey)
@@ -502,7 +502,7 @@ class ControlTask:
       self.charger_connected = False         # Needs ADS
       self.battery_low = False               # Needs ADS     
       self.in_operation = False              # IDK
-      self.start_command_rcvd = False        # IDK
+      # self.start_command_rcvd = False        # IDK
       self.start_schedule = False            # IDK
       self.has_balls = self.peripherals.getCollectedBallsQty() > 0
       self.ball_detected = len(self.balls) > 0
@@ -839,6 +839,7 @@ class ControlTask:
       # Exit
       if(self.start_command_rcvd == True or self.start_schedule == True):
          self.enablePeripherals()
+         self.start_command_rcvd == False
          self.next_state = State.SEARCHING_BALLS
          self.last_state = self.actual_state
    
@@ -872,7 +873,7 @@ class ControlTask:
          self.last_state = self.actual_state
          self.pause_command_rcvd = False
          self.status = ""
-      elif(self.static_object_detected == True):
+      elif(self.static_object_detected == True or self.peripherals.isRobotStuck()):
          self.next_state = State.AVOIDING_STATIC_OBJECT
          self.last_state = self.actual_state
          self.status = ""
@@ -905,7 +906,6 @@ class ControlTask:
 
    def avoidingStaticObject(self):
       if(self.actual_state != State.AVOIDING_STATIC_OBJECT):
-         self.reduceSpeed()
          self.actual_state = self.next_state
       
       # Do
@@ -916,7 +916,6 @@ class ControlTask:
          self.next_state = State.ROBOT_STUCK
          self.last_state = self.actual_state
       elif(self.static_object_avoided == True):
-         self.increaseSpeed()
          self.next_state = State.SEARCHING_BALLS
          self.last_state = self.actual_state
       elif(self.pause_command_rcvd == True):
@@ -937,6 +936,7 @@ class ControlTask:
          self.next_state = self.last_state
          self.last_state = self.actual_state
          self.resume_command_rcvd = False
+         self.start_command_rcvd == False
          self.status = ""
    
    def catchingBall(self):
@@ -1117,6 +1117,7 @@ class ControlTask:
    
    def findIR(self):
       if(self.search_for_IR == False):
+         print("finding ir")
          self.search_for_IR = True
          self.time_findIR = time.time()
    
@@ -1192,22 +1193,25 @@ class ControlTask:
    # Improve this
    def moveAroundObject(self):
       self.static_object_avoided = False
-      while(self.peripherals.getFrontDistance() < 15):
-         self.peripherals.driveRobotBackward(0.2, 0, 0)
+      while(self.peripherals.getFrontDistance() < 15 or self.peripherals.isRobotStuck()):
+         self.peripherals.driveRobotBackward(PWM_FORWARD-0.1, 0, 0)
+         time.sleep(1)
       self.is_rotating = True
       last_dist = 0
-      self.peripherals.driveRobotBackward(0.0, 0, 0)
-      while(self.peripherals.getFrontDistance() < 20):
-         self.peripherals.rotate(0,0.1,PWM_ROTATE-0.1)
-         last_dist = self.peripherals.getFrontDistance()
-      d2 = last_dist*math.sin(math.pi/12)
-      d3 = last_dist*math.cos(math.pi/12)
-      # print(d2)
-      # print(d3)
-      d4 = 12 - d2
-      if(d4 > 0):
-         theta = math.atan(d4/d3)
-         self.peripherals.rotate(0,theta*2,PWM_ROTATE-0.1)
+      self.peripherals.stopRobot()
+      time.sleep(0.2)
+      self.peripherals.rotate(1, APPROX_PI / 2, PWM_ROTATE)
+      # while(self.peripherals.getFrontDistance() < 20):
+      #    self.peripherals.rotate(0,0.1,PWM_ROTATE-0.1)
+      #    last_dist = self.peripherals.getFrontDistance()
+      # d2 = last_dist*math.sin(math.pi/12)
+      # d3 = last_dist*math.cos(math.pi/12)
+      # # print(d2)
+      # # print(d3)
+      # d4 = 12 - d2
+      # if(d4 > 0):
+      #    theta = math.atan(d4/d3)
+      #    self.peripherals.rotate(0,theta*2,PWM_ROTATE-0.1)
       # time.sleep(1)
       self.is_rotating = False
       self.static_object_avoided = True
@@ -1226,6 +1230,9 @@ class ControlTask:
       angle = abs(angle)
       angle_sum = 0
 
+      avgDistribution = (6*angle/10)
+      if angle > 0.75:
+         avgDistribution = (7*angle/10)
       # ball[0] = ball[0] + 3
       
       time.sleep(1)
@@ -1238,9 +1245,9 @@ class ControlTask:
             self.peripherals.rotate(0, 0.01, PWM_ROTATE-0.05)
          self.is_rotating = False
          angle_sum += 0.01
-         if ((angle_sum > (angle - (5*angle/10))) and ball[0] < -1):
+         if ((angle_sum > (angle - avgDistribution)) and ball[0] < -1):
             break
-         if ((angle_sum > (angle - (5*angle/10))) and ball[0] > 1):
+         if ((angle_sum > (angle - avgDistribution)) and ball[0] > 1):
             break
          time.sleep(0.1)
       self.peripherals.driveRobotForward(0.1, 0, 0)
@@ -1257,7 +1264,7 @@ class ControlTask:
       self.peripherals.setVacuumMotorPWM(0.1)
       time.sleep(0.5)
       self.peripherals.setVacuumMotorPWM(0.3)
-      time.sleep(1)
+      time.sleep(0.5)
 
       self.peripherals.driveRobotForward(0.1, 0, 0)
       time.sleep(0.3)
@@ -1265,7 +1272,7 @@ class ControlTask:
       time.sleep(0.3)
       self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
 
-      while(ball[1] > -10):
+      while(ball[1] > -20):
          self.peripherals.driveRobotForward(PWM_FORWARD, 0, 0)
          self.peripherals.setVacuumMotorPWM(0.3)
          time.sleep(0.5)
@@ -1327,15 +1334,9 @@ class ControlTask:
    def rotateTest(self):
       # print("Entering rotateTest")
       
-      if(len(self.balls) == 0):
-         # print("ERROR: No ball detected")
-         return
-      
-      ball = self.balls[0]
       #angle = math.atan(ball[0]/ball[1])
       #angle = abs(angle)
       # angle_sum = 0
-      angle = 0
 
       # print(
       #    f"""
@@ -1344,7 +1345,7 @@ class ControlTask:
       #    Angle: {angle}
       #    """
       # )
-
+      self.findIR()
       # time.sleep(1)
       # while(ball[0] > 1 or ball[0] < -1):
       #    print(f"ball zero: {ball[0]}")

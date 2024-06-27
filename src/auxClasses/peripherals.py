@@ -82,6 +82,10 @@ class Peripherals:
       self.lastRightMotorSteps: int = 0
       self.lastStepsReadTime: float = 0
       self.robotDirection = Direction.FORWARD # 1 for forward, 0 for backward
+      self.prevConnectBaseFlag = 0
+      self.timeSinceChange     = 0
+      self.timeConnectedToBase = 0
+      self.timeRunning         = 0
    
    def safeExit(self, signum, frame):
       self.leftMotor.stop()
@@ -338,10 +342,26 @@ class Peripherals:
    def isRobotStuck(self) -> bool:
       return self.stuckDetector.isRobotStuck()
    
-   # def getLowerBatteryLvl(self) -> float:
-   #    minVoltage = self.vacuumBattery.voltage # min(self.vacuumBattery.voltage, self.elctrnicsBattery.voltage)
-   #    minVoltage = (minVoltage / 3.3) * 100
-   #    return minVoltage
+   def getLowerBatteryLvl(self) -> float:
+      # minVoltage = self.vacuumBattery.voltage # min(self.vacuumBattery.voltage, self.elctrnicsBattery.voltage)
+      # minVoltage = (minVoltage / 3.3) * 100
+      isConnectedToBase = self.hallEffectSens.is_active
+
+      if isConnectedToBase != self.prevConnectBaseFlag:
+         self.prevConnectBaseFlag = isConnectedToBase
+         self.timeSinceChange = time.time()
+
+      if self.prevConnectBaseFlag == True:
+         self.timeConnectedToBase += time.time() - self.timeSinceChange
+         self.timeSinceChange = time.time()
+      else:
+         self.timeRunning += time.time() - self.timeSinceChange
+         self.timeSinceChange = time.time()
+      
+      voltage = 100.0 - ((self.timeRunning/600) * 100.0) + ((self.timeConnectedToBase/7200) * 100.0)
+
+      return voltage
+   
    # def getLowerBatteryADCVal(self) -> int:
    #    minADCVal = self.vacuumBattery.voltage #min(self.vacuumBattery.value, self.elctrnicsBattery.value)
    #    return minADCVal
