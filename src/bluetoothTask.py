@@ -36,13 +36,14 @@ statusCodes = {
 
 class BluetoothTask:
    def __init__(self, ctrlMsgQueue: queue.Queue):
-      self.name = "BluetoothTask"
-      self.description = "BluetoothTask"
-      self.rxBtMsg = RxBluetoothMsg()
-      self.server: socket = None
-      self.uuid = "7be1fcb3-5776-42fb-91fd-2ee7b5bbb86d"
-      self.client: socket = None
-      self.ctrlMsgQueue = ctrlMsgQueue
+      self.name                = "BluetoothTask"
+      self.description         = "BluetoothTask"
+      self.rxBtMsg             = RxBluetoothMsg()
+      self.server: socket      = None
+      self.uuid                = "7be1fcb3-5776-42fb-91fd-2ee7b5bbb86d"
+      self.client: socket      = None
+      self.ctrlMsgQueue        = ctrlMsgQueue
+      self.firstRunMsgReceived = False
       self.thread = threading.Thread(target=self.listen)
 
    def listen(self):
@@ -82,22 +83,36 @@ class BluetoothTask:
             print(f"Connected with {address}")
 
             while True:
-               data = self.client.recv(1024).decode('utf-8')
-               if data:
-                  self.rxBtMsg.parseMsg(data)
-                  okMsg = {"status" : statusCodes[200],
-                           "message": "Robot started"}
-                  self.client.send((json.dumps(okMsg) + '\n').encode('utf-8')) # App decodes messages up until '\n'
+               try:
+                  data = self.client.recv(1024).decode('utf-8')
+                  if data:
+                     self.rxBtMsg.parseMsg(data, self.firstRunMsgReceived)
+                     okMsg = {"status" : statusCodes[200],
+                              "message" : "Robot started"}
+                     self.client.send((json.dumps(okMsg) + '\n').encode('utf-8'))
 
-                  print(f"Received message: {self.rxBtMsg.msg}")
-                  
-                  if self.rxBtMsg.isCtrlCommand():
-                     self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
+                     print(f"Received message: {self.rxBtMsg.msg}")
+                     
+                     if self.rxBtMsg.isCtrlCommand():
+                        self.ctrlMsgQueue.put(self.rxBtMsg.robot_command)
+                     elif False == self.firstRunMsgReceived:
+                        self.firstRunMsgReceived = True # Message will be treated by the main thread
+                     else:
+                        self.ctrlMsgQueue.put("start")
+               except socket.error as e:
+                  print(f"Socket error: {e}")
+                  self.ctrlMsgQueue.put("connection_lost")
+                  self.client = None
+                  break
                
                time.sleep(5)
          except socket.error as e:
             print(f"Socket error: {e}")
+            self.ctrlMsgQueue.put("connection_lost")
+            self.client = None
+            pass
          except IOError:
+            self.ctrlMsgQueue.put("connection_lost")
             pass
          except KeyboardInterrupt:
             if self.client is not None:
@@ -117,9 +132,10 @@ class BluetoothTask:
       subprocess.run("bluetoothctl pairable on", shell=True)
 
    def sendRobotStatus(self, json: str):
+      # print(f"Before sending")
       if self.client:
          print(f"Sending message: {json}")
-         self.client.send((json + '\n').encode('utf-8')) # App decodes messages up until '\n'
+         self.client.send((json + '\n').encode('utf-8'))
 
    def start(self):
       self.thread.start()
